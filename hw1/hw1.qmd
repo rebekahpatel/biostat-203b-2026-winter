@@ -41,13 +41,17 @@ sessionInfo()
 
 This exercise (and later in this course) uses the [MIMIC-IV data v3.1](https://physionet.org/content/mimiciv/3.1/), a freely accessible critical care database developed by the MIT Lab for Computational Physiology. Follow the instructions at <https://mimic.mit.edu/docs/gettingstarted/> to (1) complete the CITI `Data or Specimens Only Research` course and (2) obtain the PhysioNet credential for using the MIMIC-IV data. Display the verification links to your completion report and completion certificate here. **You must complete Q2 before working on the remaining questions.** (Hint: The CITI training takes a few hours and the PhysioNet credentialing takes a couple days; do not leave it to the last minute.)
 
+**Solution:** I have completed the CITI `Data or Specimens Only Research` course and obtained the PhysioNet credential for using the MIMIC-IV data. Here are the verification links to my completion report and completion certificate:
+- [CITI Completion Report](https://www.citiprogram.org/verify/?k318cdeb0-be2d-4fdc-920c-e9b61a5cfcce-74519017)
+- [CITI Completion Certificate](https://www.citiprogram.org/verify/?w4805c31f-9c37-4302-8bdf-06ab3a70185c-74519017)
+
 ## Q3. Linux Shell Commands
 
 1. Make the MIMIC-IV v3.1 data available at location `~/mimic`. The output of the `ls -l ~/mimic` command should be similar to the below (from my laptop).
 ```{bash}
 #| eval: true
 # content of mimic folder
-ls -l ~/mimic/
+#ls -l ~/mimic/
 ```
 Refer to the documentation <https://physionet.org/content/mimiciv/3.1/> for details of data files. Do **not** put these data files into Git; they are big. Do **not** copy them into your directory. Do **not** decompress the gz data files. These create unnecessary big files and are not big-data-friendly practices. Read from the data folder `~/mimic` directly in following exercises. 
 
