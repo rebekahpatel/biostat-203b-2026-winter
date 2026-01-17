@@ -69,6 +69,12 @@ ls -l ~/mimic/icu
 
 3. Briefly describe what Bash commands `zcat`, `zless`, `zmore`, and `zgrep` do.
 
+**Solution:** 
+- zcat: This command uncompresses a list of files like .gz or its standard input and writes the uncompressed data on standard ouput.
+- zless: This command allows examination of compressed or plain text files one screenful on a terminal. If the files are compressed, the command uncompresses them itself.
+- zmore: This command also allows examination of compressed files and uncompresses them itself, one screenful at a time.
+- zgrep: This command searches expressions in compressed files, without needing to decompress them first.
+
 4. (Looping in Bash) What's the output of the following bash script?
 ```{bash}
 #| eval: false
@@ -77,9 +83,46 @@ do
   ls -l $datafile
 done
 ```
+**Solution:** The output of the following bash script is the list of the compressed files in hosp directory that start with a, l, or pa and their details such as file size, permissions, owner, group, and modification date.
+
 Display the number of lines in each data file using a similar loop. (Hint: combine linux commands `zcat <` and `wc -l`.)
 
+```{bash}
+for datafile in ~/mimic/hosp/{a,l,pa}*.gz
+do
+  echo $datafile; zcat < $datafile | wc -l
+done
+```
+
+**Solution:** The following bash script loops through the hosp directory, finds the zipped files starting with a, l, or pa, prints their path name, unzips them using zcat, and counts the number of lines in each file using wc -l. The output will the be number of lines in each file.
+
 5. Display the first few lines of `admissions.csv.gz`. How many rows are in this data file, excluding the header line? Each `hadm_id` identifies a hospitalization. How many hospitalizations are in this data file? How many unique patients (identified by `subject_id`) are in this data file? Do they match the number of patients listed in the `patients.csv.gz` file? (Hint: combine Linux commands `zcat <`, `head`/`tail`, `awk`, `sort`, `uniq`, `wc`, and so on.)
+
+```{bash}
+# display first 5 lines
+zcat < ~/mimic/hosp/admissions.csv.gz | head -5
+```
+**Solution:** This script uncompresses the file and displays the first 5 lines of the admissions file.
+```{bash}
+# how many rows excluding header line
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | wc -l
+```
+**Solution:** This script counts the number of lines, aside of the header, in the admissions file. There are 546,028 lines in the admissions file, excluding the header.
+```{bash}
+# hospitalizations
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $2}' | sort | uniq | wc -l
+```
+**Solution:** This script finds the list of unique hospitalizations and counts how many there are. There are 546,028 hospitalizations in the admissions file, the same as the number of rows, which means all hospitalizations are unique.
+```{bash}
+#patients
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+```
+**Solution:** This script finds the list of unique patients and counts how many there are. There are 223,452 unique patients in the admissions file.
+```{bash}
+#patients in patients.csv.gz
+zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+```
+**Solution:** This script finds the list of unique patients in the patients file and counts how many there are. There are 364,627 unique patients in the patients file. The number of unique patients in the admissions file (223,452) does not match the number of unique patients in the patients file (364,627).
 
 6. What are the possible values taken by each of the variable `admission_type`, `admission_location`, `insurance`, and `ethnicity`? Also report the count for each unique value of these variables in decreasing order. (Hint: combine Linux commands `zcat`, `head`/`tail`, `awk`, `uniq -c`, `wc`, `sort`, and so on; skip the header line.)
 
