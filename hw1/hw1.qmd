@@ -129,7 +129,7 @@ zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort |
 ```{bash}
 # admission_type => 6
 zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $6}'| sort | uniq -c | sort -nr
-```t $5}' | sort | uniq -c | sort -nr
+```
 
 ```{bash}
 # admission_location, 8
@@ -194,9 +194,10 @@ wget -nc http://www.gutenberg.org/cache/epub/42671/pg42671.txt
 for char in Elizabeth Jane Lydia Darcy
 do
   echo $char:
-  # some bash commands here
+  grep -woc $char pg42671.txt
 done
 ```
+**Solution:** wget -nc is a command that finds a file from the internet and downloads to the local directory, and with -nc flags, it makes sure that only one version is saved. The command will not work if the same file has already been downloaded. In *Pride and Prejudice*, Elizabeth is written more times than Darcy.
 
 2. What's the difference between the following two commands?
 ```{bash}
@@ -209,6 +210,12 @@ and
 echo 'hello, world' >> test2.txt
 ```
 
+```{bash}
+cat test1.txt
+cat test2.txt
+```
+**Solution:** The first command uses >, which overwrites test1.txt and puts in the output of echo 'hello, world'. The second command uses >> which appends the output of echo 'hello, world' to test2.txt. 
+
 3. Using your favorite text editor (e.g., `vi`), type the following and save the file as `middle.sh`:
 ```{bash eval=FALSE}
 #!/bin/sh
@@ -220,8 +227,13 @@ Using `chmod` to make the file executable by the owner, and run
 ```{bash}
 #| eval: false
 ./middle.sh pg42671.txt 20 5
+
 ```
+
 Explain the output. Explain the meaning of `"$1"`, `"$2"`, and `"$3"` in this shell script. Why do we need the first line of the shell script?
+
+**Solution:** `"$1"`, `"$2"`, and `"$3"` are the arguments that follow after calling the shell script. `"$1"`is pg42671.txt, the file that contains *Pride and Prejudice*. `"$2"` is 20 and `"$3"` is 5. The shell script takes the first 20 lines of the text file and inputs it into the pipe to get the last 5 lines of the first 20. The lines 16, 17, 18, 19, and 20 are displayed from the text file. The first line of the shell script #!/bin/sh is a declaration that tells the operator which interpreter to use to execute the commands in the script.
+
 
 ## Q5. More fun with Linux
 
