@@ -239,6 +239,44 @@ Explain the output. Explain the meaning of `"$1"`, `"$2"`, and `"$3"` in this sh
 
 Try following commands in Bash and interpret the results: `cal`, `cal 2026`, `cal 9 1752` (anything unusual?), `date`, `hostname`, `arch`, `uname -a`, `uptime`, `who am i`, `who`, `w`, `id`, `last | head`, `echo {con,pre}{sent,fer}{s,ed}`, `time sleep 5`, `history | tail`.
 
+```{bash}
+cal
+cal 2026
+cal 9 1752
+```
+**Solution**:
+- cal: displays the calendar month of the current year and month.
+- cal 2026: displays all the calendar months of 2026
+- cal 9 1752: displays the calendar month of 9 in 1752. However, there are missing days from 3 to 13 for some reason.
+
+```{bash}
+date
+hostname
+arch
+```
+**Solution:** 
+- date: displays the current day, time and timezone of the user, and year
+- hostname: user's hostname on Linux
+- arch: user's computer architecture system
+
+```{bash}
+uname -a
+uptime
+who am i
+who
+w
+id
+last | head
+```
+**Solution:**
+- uname -a: displays the operating system implementation with -a flag allowing all details to be displayed
+- uptime: shows how long the system has been running, current ime, length of time system has been up, the numbers of users, and the load average of the system over the last 1, 5, and 15 minutes
+- who am i: displays information about the current logged in user, including login name, tty name, date and time of login, which is the current time
+- who: displays default information of the current logged in user
+- w: print a summary of the current activity of the system, including what the user is doing. 
+- id: prints the users identity number, me and the guest user
+- last | head: prints the first 10 logis of users and ttys
+
 ## Q6. Book
 
 1. Git clone the repository <https://github.com/christophergandrud/Rep-Res-Book> for the book _Reproducible Research with R and RStudio_ to your local machine. Do **not** put this repository within your homework repository `biostat-203b-2026-winter`.
