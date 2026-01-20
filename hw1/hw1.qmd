@@ -275,7 +275,8 @@ last | head
 - who: displays default information of the current logged in user
 - w: print a summary of the current activity of the system, including what the user is doing. 
 - id: prints the users identity number, me and the guest user
-- last | head: prints the first 10 logins of users and ttys
+- last | head: shows the last logged in users, and head only shows the first 10 lines of the output
+
 
 ## Q6. Book
 
@@ -287,6 +288,7 @@ The point of this exercise is (1) to obtain the book for free and (2) to see an 
 
 For grading purpose, include a screenshot of Section 4.1.5 of the book here.
 
+**Solution:** Here is the screenshot of Section 4.5.1 of *Reproducible Research with R and RStudio* Book.
 ![Rendered Section 4.5.1 of *Reproducible Research with R and Rstudio* Book](img/Section4.5.1.png)
 
 
@@ -295,3 +297,19 @@ For grading purpose, include a screenshot of Section 4.1.5 of the book here.
 Which AI assistants (e.g., GitHub Copilot) do you use when working on this assignment? Which AI model (e.g., GPT-5 mini, GPT-5, Claude Sonnet 4.5) does the AI assistant use? How do you use them? Do you think they help improve your productivity? 
 
 Give 5 instances where AI model gave incorrect or misleading answers. You can use screenshots or copy-paste the Q&A.
+
+**Solution:** I used two AI assistants working on this assignment. GitHub Copilot through RStudio and Claude Sonnet 4.5. GitHub Copilot helped me with writing bash scripts and commands, while Claude Sonnet 4.5 helped me with debugging my code when I received error messages. Both AI assistants helped improve my productivity by providing quick solutions and suggestions, allowing me to focus on understanding the concepts rather than getting stuck on specific coding issues.
+
+Here are 5 instances where the AI model gave incorrect or misleading answers:
+1. Copilot suggested an incorrect link for my Citi certificate.
+![Incorrect Link Suggestion](img/AI_error_certificate.png)
+2. Copilot suggested using an incorrect awk command to count unique patients.
+![Incorrect Awk Command](img/AI_error_script.png)
+3. Claude Sonnet 4.5 provided an incorrect solution for gzip decompression which caused additional errors.
+![Incorrect Gzip Command](img/AI_error_gzip.png)
+4. Copilot suggested an incorrect description of my usage of Claude Sonnet 4.5.1.
+![Incorrect Usage Description](img/AI_error_descript.png)
+
+5. Copilot suggested an incorrect image file name for a screenshot in this section.
+![Incorrect Image File Name](img/AI_error_file.png)
+
