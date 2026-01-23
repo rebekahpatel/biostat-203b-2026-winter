@@ -56,6 +56,8 @@ ls -l ~/mimic/
 ```
 Refer to the documentation <https://physionet.org/content/mimiciv/3.1/> for details of data files. Do **not** put these data files into Git; they are big. Do **not** copy them into your directory. Do **not** decompress the gz data files. These create unnecessary big files and are not big-data-friendly practices. Read from the data folder `~/mimic` directly in following exercises. 
 
+**Solutions:** Created a symbolic link to the MIMIC-IV v3.1 data at location `~/mimic`. The output of the `ls -l ~/mimic` command shows the contents of the mimic folder as expected.
+
   Use Bash commands to answer following questions.
 
 2. Display the contents in the folders `hosp` and `icu` using Bash command `ls -l`. Why are these data files distributed as `.csv.gz` files instead of `.csv` (comma separated values) files? Read the page <https://mimic.mit.edu/docs/iv/> to understand what's in each folder.
@@ -103,24 +105,31 @@ done
 zcat < ~/mimic/hosp/admissions.csv.gz | head -5
 ```
 **Solution:** This script uncompresses the file and displays the first 5 lines of the admissions file.
+
 ```{bash}
 # how many rows excluding header line
 zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | wc -l
 ```
 **Solution:** This script counts the number of lines, aside of the header, in the admissions file. There are 546,028 lines in the admissions file, excluding the header.
+
 ```{bash}
 # hospitalizations
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $2}' | sort | uniq | wc -l
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $2}' | sort | uniq | wc -l
 ```
 **Solution:** This script finds the list of unique hospitalizations and counts how many there are. There are 546,028 hospitalizations in the admissions file, the same as the number of rows, which means all hospitalizations are unique.
+
 ```{bash}
 #patients
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $1}' | sort | uniq | wc -l
 ```
-**Solution:** This script finds the list of unique patients and counts how many there are. There are 223,452 unique patients in the admissions file.
+**Solution:** This script finds the list of unique patients in the admissions file and counts how many there are. There are 223,452 unique patients in the admissions file. It searches all rows except for the header, in the patients column, sorts them, finds the unique ones, and counts them.
+
 ```{bash}
 #patients in patients.csv.gz
-zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | 
+  awk -F, '{print $1}' | sort | uniq | wc -l
 ```
 **Solution:** This script finds the list of unique patients in the patients file and counts how many there are. There are 364,627 unique patients in the patients file. The number of unique patients in the admissions file (223,452) does not match the number of unique patients in the patients file (364,627).
 
@@ -128,35 +137,41 @@ zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort |
 
 ```{bash}
 # admission_type => 6
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $6}'| sort | uniq -c | sort -nr
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $6}'| sort | uniq -c | sort -nr
 ```
 
 ```{bash}
 # admission_location, 8
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $8}' | sort | uniq -c | sort -nr
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $8}' | sort | uniq -c | sort -nr
 ```
 
 ```{bash}
 # insurance, 11
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $10}' | sort | uniq -c | sort -nr
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $10}' | sort | uniq -c | sort -nr
 ```
 
 ```{bash}
 # ethnicity, 14
-zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $13}' | sort | uniq -c | sort -nr
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | 
+  awk -F, '{print $13}' | sort | uniq -c | sort -nr
 ```
-**Solution:** Each script searches the admissions file, excluding header, for the unique values of the specific column and counts how many times they show up. 
+**Solution:** Each script searches the admissions file, excluding header, for the unique values of the specific column and counts how many times they show up. Each script uses the same commands, but changes the searched column. The script sorts each column, counts each distinct value, and sorts the counts in decreasing order.
 
 7. The `icusays.csv.gz` file contains all the ICU stays during the study period. How many ICU stays, identified by `stay_id`, are in this data file? How many unique patients, identified by `subject_id`, are in this data file?
 
 ```{bash}
-zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | awk -F, '{print $3}' | sort | uniq | wc -l
+zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | 
+  awk -F, '{print $3}' | sort | uniq | wc -l
 
 zcat < ~/mimic/icu/icustays.csv.gz | wc -l
 
-zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | 
+  awk -F, '{print $1}' | sort | uniq | wc -l
 ```
-**Solution:** The number of ICU stays in the file is 94,458, which is also the same number of rows in the file, excluding the header. There are 65,366 unique patients in the data file.
+**Solution:** The number of ICU stays in the file is 94,458, which is also the same number of rows in the file, excluding the header. There are 65,366 unique patients in the data file. The first command searches the stay_id column and counts the distinct ids. The second command counts the number of rows because I wanted to know whether the number of unique icu stays is the same as the number of rows excluding the header. The third command searches the subject_id column and counts the unique values.
 
 8. _To compress, or not to compress. That's the question._ Let's focus on the big data file `labevents.csv.gz`. Compare compressed gz file size to the uncompressed file size. Compare the run times of `zcat < ~/mimic/labevents.csv.gz | wc -l` versus `wc -l labevents.csv`. Discuss the trade off between storage and speed for big data files. (Hint: `gzip -dk < FILENAME.gz > ./FILENAME`. Remember to delete the large `labevents.csv` file after the exercise.)
 
@@ -197,7 +212,7 @@ do
   grep -woc $char pg42671.txt
 done
 ```
-**Solution:** wget -nc is a command that finds a file from the internet and downloads to the local directory, and with -nc flags, it makes sure that only one version is saved. The command will not work if the same file has already been downloaded. In *Pride and Prejudice*, Elizabeth is written more times than Darcy.
+**Solution:** wget -nc is a command that finds a file from the internet and downloads to the local directory, and with -nc flags, it makes sure that only one version is saved. The command will not work if the same file has already been downloaded. The grep command is used to search for the word with flags -woc to find the specific expression as a word and count the number of times it occurs. In *Pride and Prejudice*, Elizabeth is written more times than Darcy.
 
 2. What's the difference between the following two commands?
 ```{bash}
