@@ -1,7 +1,7 @@
 ---
 title: "Biostat 203B Homework 2"
 subtitle: Due ~~Feb 8~~ Feb 11, 2026 @ 11:59PM
-author: "Your Name and UID"
+author: "Rebekah Patel and 605566820"
 format:
   html:
     theme: cosmo
@@ -56,9 +56,67 @@ There are quite a few utilities in R for reading plain text data files. Let us t
 
 Which function is fastest? Is there difference in the (default) parsed data types? How much memory does each resultant dataframe or tibble use? (Hint: `system.time` measures run times; `pryr::object_size` measures memory usage; all these readers can take gz file as input without explicit decompression.) 
 
+```{r}
+system.time(read.csv("~/mimic/hosp/admissions.csv.gz"))
+system.time(read_csv("~/mimic/hosp/admissions.csv.gz"))
+system.time(fread("~/mimic/hosp/admissions.csv.gz"))
+```
+**Solution:** The fastest function is `fread` from the data.table package. The default parsed data types are different among the three functions. `read.csv` reads character columns as factors by default, while `read_csv` and `fread` read character columns as characters.
+
+```{r}
+pryr::object_size(read.csv("~/mimic/hosp/admissions.csv.gz"))
+pryr::object_size(read_csv("~/mimic/hosp/admissions.csv.gz"))
+pryr::object_size(fread("~/mimic/hosp/admissions.csv.gz"))
+```
+**Solution:** The memory usage of the resultant dataframe or tibble is different among the three functions. `fread` generally uses less memory compared to `read.csv` and `read_csv`. However, `fread` and `read_csv` produce similar memory usage, which is substantially less than that of `read.csv`.
+
 ### Q1.2 User-supplied data types
 
 Re-ingest `admissions.csv.gz` by indicating appropriate column data types in `read_csv`. Does the run time change? How much memory does the result tibble use? (Hint: `col_types` argument in `read_csv`; result tibble should be less than 50MB.)
+
+```{r}
+system.time(read_csv("~/mimic/hosp/admissions.csv.gz", 
+              col_types = list(
+                subject_id = col_integer(),
+                hadm_id = col_integer(),
+                admittime = col_datetime(format = ""),
+                dischtime = col_datetime(format = ""),
+                deathtime = col_datetime(format = ""),
+                admission_type = col_factor(NULL),
+                admit_provider_id = col_character(),
+                admission_location = col_factor(NULL),
+                discharge_location = col_factor(NULL),
+                insurance = col_factor(NULL),
+                language = col_factor(NULL),
+                marital_status = col_factor(NULL),
+                race = col_factor(NULL),
+                edregtime = col_datetime(format = ""),
+                edouttime = col_datetime(format = ""),
+                hospital_expire_flag = col_integer())))
+
+```
+
+```{r}
+pryr::object_size(read_csv("~/mimic/hosp/admissions.csv.gz", 
+              col_types = list(
+                subject_id = col_integer(),
+                hadm_id = col_integer(),
+                admittime = col_datetime(format = ""),
+                dischtime = col_datetime(format = ""),
+                deathtime = col_datetime(format = ""),
+                admission_type = col_factor(NULL),
+                admit_provider_id = col_character(),
+                admission_location = col_factor(NULL),
+                discharge_location = col_factor(NULL),
+                insurance = col_factor(NULL),
+                language = col_factor(NULL),
+                marital_status = col_factor(NULL),
+                race = col_factor(NULL),
+                edregtime = col_datetime(format = ""),
+                edouttime = col_datetime(format = ""),
+                hospital_expire_flag = col_integer())))
+```
+**Solution:** The run time of `read_csv` with user-supplied data types is a little faster than without specifying data types, going from 3.673 seconds to 3.336 seconds. The memory usage of the resultant tibble is reduced to 48.19MB from 70.02MB when appropriate column data types are specified.
 
 ## Q2. Ingest big data files
 
