@@ -142,7 +142,7 @@ zcat < ~/mimic/hosp/labevents.csv.gz | head -10
 Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes more than 3 minutes on your computer, then abort the program and report your findings. 
 
 ```{r}
-read_csv("~/mimic/hosp/labevents.csv.gz")
+#read_csv("~/mimic/hosp/labevents.csv.gz")
 ```
 **Solution:** When trying to ingest `labevents.csv.gz` using `read_csv`, it takes a very long time (more than 3 minutes) so I aborted the program. 
 
@@ -150,9 +150,17 @@ read_csv("~/mimic/hosp/labevents.csv.gz")
 
 Try to ingest only columns `subject_id`, `itemid`, `charttime`, and `valuenum` in `labevents.csv.gz` using `read_csv`.  Does this solve the ingestion issue? (Hint: `col_select` argument in `read_csv`.)
 
+```{bash}
+#ln -s /Volumes/NOV2025/mimic-iv-3.1 ~/mimic
+
+```
+
 ```{r}
+gc()
+
 system.time(read_csv("~/mimic/hosp/labevents.csv.gz",
-         col_select = c("subject_id", "itemid", "charttime", "valuenum")))
+          col_select = c("subject_id", "itemid", "charttime", "valuenum"),
+          n_max = 10000000))
 ```
 
 ### Q2.3 Ingest a subset of `labevents.csv.gz`
@@ -167,6 +175,14 @@ In later exercises, we will only be interested in the following lab items: album
 
 Display the first 10 lines of the new file `labevents_filtered.csv.gz`. How many lines are in this new file, excluding the header? How long does it take `read_csv` to ingest `labevents_filtered.csv.gz`?
 
+```{bash}
+#| eval: false
+gzcat < ~/mimic/hosp/labevents.csv.gz | 
+  awk -F, 'NR>1 || $5==50862 || $5==50912 || $5==50971 || $5==50983 || $5==50902 || $5==50882 ||
+  $5==51221 || $5==51301 || $5==50931 {print $2, $5, $7 ,$10}' | gzip > ~/BIOSTAT203B/203b-hw/hw2/labevents_filtered.csv.gz
+  
+```
+
 ### Q2.4 Ingest `labevents.csv` by Apache Arrow
 
 <p align="center">
@@ -178,6 +194,11 @@ Our second strategy is to use [Apache Arrow](https://arrow.apache.org/) for larg
 Then use [`arrow::open_dataset`](https://arrow.apache.org/docs/r/reference/open_dataset.html) to ingest `labevents.csv`, select columns, and filter `itemid` as in Q2.3. How long does the ingest+select+filter process take? Display the number of rows and the first 10 rows of the result tibble, and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
 
 Write a few sentences to explain what Apache Arrow is. Imagine you want to explain it to a layman in an elevator. 
+
+```{bash}
+#| eval: false
+zcat ~/mimic/hosp/labevents.csv.gz > hw2/labevents.csv
+```
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
 
