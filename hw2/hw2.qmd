@@ -198,7 +198,8 @@ gzcat < labevents_filtered.csv.gz | wc -l
 system.time(read_csv("labevents_filtered.csv.gz"))
 ```
 **Solution:** There are 33,712,352 lines, excluding the header. The time taken by `read_csv` to 
-read labevents_filtered.csv.gz is user 162.173 seconds and elapsed time is 425.971 seconds.
+read labevents_filtered.csv.gz is user 162.173 seconds and elapsed time is 425.971 seconds. It took
+around 30 minutes to filter labevents and create the zipped file labevents_filtered.csv.gz.
 
 ### Q2.4 Ingest `labevents.csv` by Apache Arrow
 
@@ -214,7 +215,19 @@ Write a few sentences to explain what Apache Arrow is. Imagine you want to expla
 
 ```{bash}
 #| eval: false
-zcat ~/mimic/hosp/labevents.csv.gz > hw2/labevents.csv
+gzip -dk < ~/mimic/hosp/labevents.csv.gz > labevents.csv
+```
+
+```{r}
+arrow_filtered_data <- open_dataset("labevents.csv", format = "csv") |>
+  select(subject_id, itemid, charttime, valuenum) |>
+  filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+  collect()
+```
+
+```{r}
+nrow(arrow_filtered_data)
+head(arrow_filtered_data, 10)
 ```
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
