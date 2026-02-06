@@ -219,16 +219,17 @@ gzip -dk < ~/mimic/hosp/labevents.csv.gz > labevents.csv
 ```
 
 ```{r}
-arrow_filtered_data <- open_dataset("labevents.csv", format = "csv") |>
+system.time(labevents_csv <- open_dataset("labevents.csv", format = "csv") |>
   select(subject_id, itemid, charttime, valuenum) |>
   filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
-  collect()
+  collect())
 ```
 
 ```{r}
-nrow(arrow_filtered_data)
-head(arrow_filtered_data, 10)
+nrow(labevents_csv)
+head(labevents_csv, 10)
 ```
+**Solution:** The ingest+select+filter process takes around 1 minute (73 seconds for user and 68 seconds elapsed).
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
 
@@ -239,6 +240,22 @@ head(arrow_filtered_data, 10)
 Re-write the csv file `labevents.csv` in the binary Parquet format (Hint: [`arrow::write_dataset`](https://arrow.apache.org/docs/r/reference/write_dataset.html).) How large is the Parquet file(s)? How long does the ingest+select+filter process of the Parquet file(s) take? Display the number of rows and the first 10 rows of the result tibble and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
 
 Write a few sentences to explain what the Parquet format is. Imagine you want to explain it to a layman in an elevator.
+
+```{r}
+not_filtered <- open_dataset("labevents.csv", format = "csv")
+system.time(
+  labevents_pq <- write_dataset(not_filtered, path = "pq_files", format = "parquet") |>
+    select(subject_id, itemid, charttime, valuenum) |>
+    filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+    collect()
+)
+
+tibble(
+  files = list.files("pq_files", recursive = TRUE),
+  size_MB = file.size(file.path("pq_files", files)) / 1024^2
+)
+
+```
 
 ### Q2.6 DuckDB
 
