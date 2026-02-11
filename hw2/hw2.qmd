@@ -150,18 +150,13 @@ Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes mor
 
 Try to ingest only columns `subject_id`, `itemid`, `charttime`, and `valuenum` in `labevents.csv.gz` using `read_csv`.  Does this solve the ingestion issue? (Hint: `col_select` argument in `read_csv`.)
 
-```{bash}
-ln -s ~/BIOSTAT203B/mimic-iv-3.1 ~/mimic
-
-```
-
 ```{r}
 gc()
 
 system.time(read_csv("~/mimic/hosp/labevents.csv.gz",
-          col_select = c("subject_id", "itemid", "charttime", "valuenum"),
-          n_max = 10000000))
+          col_select = c("subject_id", "itemid", "charttime", "valuenum")))
 ```
+**Solution:** After 15 minutes, the `read_csv` function is still running and has not completed the ingestion of the selected columns from `labevents.csv.gz`, so I terminated the command. This suggests that simply selecting specific columns does not solve the ingestion issue, likely due to the sheer size of the file and the inefficiency of `read_csv` for handling such large datasets.
 
 ### Q2.3 Ingest a subset of `labevents.csv.gz`
 
@@ -178,13 +173,12 @@ Display the first 10 lines of the new file `labevents_filtered.csv.gz`. How many
 
 ```{bash}
 #| eval: false
-#gzcat < ~/mimic/hosp/labevents.csv.gz | \
-#  pv -l | \
-#  awk -F, 'NR==1 {print $2, $5, $7, $10; next} 
-#  $5==50862 || $5==50912 || $5==50971 || $5==50983 || 
-#  $5==50902 || $5==50882 || $5==51221 || $5==51301 || 
-#  $5==50931 {print $2, $5, $7 ,$10}' | \
-#  gzip > ~/BIOSTAT203B/203b-hw/hw2/labevents_filtered.csv.gz
+gzcat < ~/mimic/hosp/labevents.csv.gz | \
+  awk -F, 'NR==1 {print $2, $5, $7, $10; next} 
+  $5==50862 || $5==50912 || $5==50971 || $5==50983 || 
+  $5==50902 || $5==50882 || $5==51221 || $5==51301 || 
+  $5==50931 {print $2, $5, $7 ,$10}' | \
+  gzip > ~/BIOSTAT203B/203b-hw/hw2/labevents_filtered.csv.gz
 ```
 
 ```{bash}
@@ -229,7 +223,7 @@ system.time(labevents_csv <- open_dataset("labevents.csv", format = "csv") |>
 nrow(labevents_csv)
 head(labevents_csv, 10)
 ```
-**Solution:** The ingest+select+filter process takes around 1 minute (73 seconds for user and 68 seconds elapsed).
+**Solution:** The ingest+select+filter process takes around 1 minute (73 seconds for user and 68 seconds elapsed). In simple terms, Apache Arrow helps to speed up data processing by allowing different tools and languages to work together seamlessly without the need for data serialization or copying. In this case, open_dataset allows us to read and manipulate large csv files efficiently, even if they are larger than the available memory, by processing them in chunks and using optimized data structures.
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
 
@@ -269,7 +263,7 @@ nrow(labevents_pq)
 head(labevents_pq, 10)
 print(file_info)
 ```
-**Solution:** The time it takes to re-write `labevents.csv`as parquet files is about 216 elapsed seconds and 315 user seconds. The time it takes to ingest+select+filter the parquet files is elapsed 13seconds and 56 user seconds. The parquet file is about 2.6GB in size, which 15% of the csv file size (17.4GB).
+**Solution:** The time it takes to re-write `labevents.csv`as parquet files is about 216 elapsed seconds and 315 user seconds. The time it takes to ingest+select+filter the parquet files is elapsed 13seconds and 56 user seconds. The parquet file is about 2.6GB in size, which 15% of the csv file size (17.4GB). In simple terms, Parquet helps to store and process large datasets more efficiently by organizing data in a way that allows for faster reading and querying. It uses a columnar storage format, which means that it stores data by columns rather than by rows, making it more efficient for analytical queries that only need to access specific columns of data.
 
 ### Q2.6 DuckDB
 
@@ -293,6 +287,7 @@ system.time(
 nrow(labevents_duckdb)
 head(labevents_duckdb, 10)
 ```
+**Solution:** The time it takes to ingest+convert+select+filter the parquet files using DuckDB is about 10 seconds (elapsed) and 35 seconds (user). In simple terms, DuckDB is an in-process SQL database management system that allows you to run SQL queries directly on your data without needing to set up a separate database server. It is designed for analytical workloads and can efficiently handle large datasets, making it a powerful tool for data analysis and manipulation.
 
 ## Q3. Ingest and filter `chartevents.csv.gz`
 
