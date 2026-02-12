@@ -217,6 +217,7 @@ gzip -dk < ~/mimic/hosp/labevents.csv.gz > labevents.csv
 system.time(labevents_csv <- open_dataset("labevents.csv", format = "csv") |>
   select(subject_id, itemid, charttime, valuenum) |>
   filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+  arrange(subjectid, charttime, itemid) |>
   collect())
 ```
 
@@ -256,6 +257,7 @@ system.time(
   labevents_pq <- open_dataset(pq_dir, format = "parquet") |>
     select(subject_id, itemid, charttime, valuenum) |>
     filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+    arrange(subjectid, charttime, itemid) |>
     collect()
 )
 ```
@@ -282,6 +284,7 @@ system.time(
     to_duckdb() |>
     select(subject_id, itemid, charttime, valuenum) |>
     filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+    arrange(subjectid, charttime, itemid) |>
     collect()
 )
 
@@ -322,6 +325,7 @@ chartevents_subset <- open_dataset(pq_chart_dir, format = "parquet") |>
   to_duckdb() |>
   select(subject_id, itemid, charttime, valuenum) |>
   filter(itemid %in% c(220045, 220181, 220179, 223761, 220210)) |>
+  arrange(subjectid, charttime, itemid) |>
   collect()
 
 ```
@@ -337,3 +341,26 @@ head(chartevents_subset, 10)
 Which AI assistants (e.g., GitHub Copilot) do you use when working on this assignment? Which AI model (e.g., GPT-5 mini, GPT-5, Claude Sonnet 4.5) does the AI assistant use? How do you use them? Do you think they help improve your productivity? 
 
 Give 5 instances where AI model gave incorrect or misleading answers. You can use screenshots or copy-paste the Q&A.
+**Solution:** I used GitHub Copilot to help generate code snippets and provide suggestions while working on the assignment. It has been helpful in improving my productivity by offering quick solutions and ideas for coding tasks. However, there were instances where the AI model gave incorrect or misleading answers, such as suggesting inefficient code, providing incorrect syntax, or misunderstanding the context of the problem. I have documented these instances with screenshots and copy-pasted Q&A for reference. I also used Claude, Sonnet 4.5 model, to help with debugging, storage issues, and questions on why my code took too long.
+
+1. Copilot suggested incorrect Linux code to filtering labevents.csv.gz.
+![](img/incorrect_bash.png)
+
+2. Copilot suggested selecting certain columns from a dataset when it was not asked in the question. 
+![](img/no_select_columns.png)
+
+3. Copilot suggested the wrong runtimes to describe the previously run code.
+![](img/2.6_wrong_time.png)
+
+4. Copilot suggested more incorrect runtimes to another command.
+![](img/duckdb_time.png)
+
+5. Copilot suggested incorrect file sizes in the commentary of file storage.
+![](img/wrong_file_size.png)
+
+
+
+
+
+
+
