@@ -151,7 +151,7 @@ Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes mor
 Try to ingest only columns `subject_id`, `itemid`, `charttime`, and `valuenum` in `labevents.csv.gz` using `read_csv`.  Does this solve the ingestion issue? (Hint: `col_select` argument in `read_csv`.)
 
 ```{r}
-gc()
+#| eval: false
 
 system.time(read_csv("~/mimic/hosp/labevents.csv.gz",
           col_select = c("subject_id", "itemid", "charttime", "valuenum")))
@@ -189,6 +189,7 @@ gzcat < labevents_filtered.csv.gz | head -10
 gzcat < labevents_filtered.csv.gz | wc -l
 ```
 ```{r}
+#| eval: false
 system.time(read_csv("labevents_filtered.csv.gz"))
 ```
 **Solution:** There are 33,712,352 lines, excluding the header. The time taken by `read_csv` to 
