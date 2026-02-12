@@ -144,7 +144,7 @@ Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes mor
 ```{r}
 #read_csv("~/mimic/hosp/labevents.csv.gz")
 ```
-**Solution:** When trying to ingest `labevents.csv.gz` using `read_csv`, it takes a very long time (more than 3 minutes) so I aborted the program. 
+**Solution:** When trying to ingest `labevents.csv.gz` using `read_csv`, it takes a very long time (more than 3 minutes) so I aborted the program. This suggests that `read_csv` is not efficient for handling such large datasets, likely due to the sheer size of the file and the way `read_csv` processes data in memory. It may be trying to read the entire file into memory at once, which can lead to performance issues and potential memory exhaustion. Since labevents.csv.gz is about 17.4GB in size, it is likely that the computer's memory is not sufficient to handle the entire file, leading to the long processing time.
 
 ### Q2.2 Ingest selected columns of `labevents.csv.gz` by `read_csv`
 
@@ -156,7 +156,7 @@ Try to ingest only columns `subject_id`, `itemid`, `charttime`, and `valuenum` i
 system.time(read_csv("~/mimic/hosp/labevents.csv.gz",
           col_select = c("subject_id", "itemid", "charttime", "valuenum")))
 ```
-**Solution:** After 15 minutes, the `read_csv` function is still running and has not completed the ingestion of the selected columns from `labevents.csv.gz`, so I terminated the command. This suggests that simply selecting specific columns does not solve the ingestion issue, likely due to the sheer size of the file and the inefficiency of `read_csv` for handling such large datasets.
+**Solution:** After 15 minutes, the `read_csv` function is still running and has not completed the ingestion of the selected columns from `labevents.csv.gz`, so I terminated the command. This suggests that simply selecting specific columns does not solve the ingestion issue, likely due to the sheer size of the file and the inefficiency of `read_csv` for handling such large datasets. Even though we are only selecting a subset of columns, `read_csv` may still be trying to read the entire file into memory before filtering out the unwanted columns, which can lead to performance issues and potential memory exhaustion. Therefore, alternative strategies may be needed to efficiently handle and process such large datasets.
 
 ### Q2.3 Ingest a subset of `labevents.csv.gz`
 
@@ -304,7 +304,7 @@ How many rows? 433 millions.
 #| eval: false
 zcat < ~/mimic/icu/chartevents.csv.gz | tail -n +2 | wc -l
 ```
-**Solution:** After 5 minutes, the command is still running and has not completed counting the number of rows in `chartevents.csv.gz`, so I terminated the command.
+**Solution:** After 10 minutes, the command is still running and has not completed counting the number of rows in `chartevents.csv.gz`, so I terminated the command.
 
 [`d_items.csv.gz`](https://mimic.mit.edu/docs/iv/modules/icu/d_items/) is the dictionary for the `itemid` in `chartevents.csv.gz`.
 ```{bash}
@@ -334,7 +334,7 @@ nrow(chartevents_subset)
 head(chartevents_subset, 10)
 ```
 
-**Solution:** I rewrote `chartevents.csv.gz` into Parquet files then ingested+selected+filtered the files with DuckDB.
+**Solution:** I rewrote `chartevents.csv.gz` into Parquet files, creating a folder called pq_chart to hold the Parquet files. Then I  ingested+selected+filtered the files with DuckDB utilizing Apache Arrow's open_dataset(), to_duckdb(), and dplyr functions. I selected the four columns desired, subject_id, itemid, charttime, and valuenum, and filtered for the five itemids of interest. I then ordered the resulting tibble.
 
 ## Q4. AI assistant
 
