@@ -142,7 +142,8 @@ zcat < ~/mimic/hosp/labevents.csv.gz | head -10
 Try to ingest `labevents.csv.gz` using `read_csv`. What happens? If it takes more than 3 minutes on your computer, then abort the program and report your findings. 
 
 ```{r}
-#read_csv("~/mimic/hosp/labevents.csv.gz")
+#| eval: false
+read_csv("~/mimic/hosp/labevents.csv.gz")
 ```
 **Solution:** When trying to ingest `labevents.csv.gz` using `read_csv`, it takes a very long time (more than 3 minutes) so I aborted the program. This suggests that `read_csv` is not efficient for handling such large datasets, likely due to the sheer size of the file and the way `read_csv` processes data in memory. It may be trying to read the entire file into memory at once, which can lead to performance issues and potential memory exhaustion. Since labevents.csv.gz is about 17.4GB in size, it is likely that the computer's memory is not sufficient to handle the entire file, leading to the long processing time.
 
@@ -256,7 +257,8 @@ print(file_info)
 system.time(
   labevents_pq <- open_dataset(pq_dir, format = "parquet") |>
     select(subject_id, itemid, charttime, valuenum) |>
-    filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+    filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 
+                         50882, 51221, 51301, 50931)) |>
     arrange(subjectid, charttime, itemid) |>
     collect()
 )
@@ -283,7 +285,8 @@ system.time(
   labevents_duckdb <- open_dataset(pq_dir) |>
     to_duckdb() |>
     select(subject_id, itemid, charttime, valuenum) |>
-    filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
+    filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 
+                         50882, 51221, 51301, 50931)) |>
     arrange(subjectid, charttime, itemid) |>
     collect()
 )
