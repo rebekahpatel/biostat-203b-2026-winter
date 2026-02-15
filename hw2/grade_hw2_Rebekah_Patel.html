@@ -1,0 +1,255 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title>HW2</title>
+  <style type="text/css">
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<div id="header">
+<h1 class="title">HW2</h1>
+</div>
+<p><em>Rebekah Patel</em></p>
+<h3 id="overall-grade-198200">Overall Grade: 198/200</h3>
+<h3 id="quality-of-report-1010">Quality of report: 10/10</h3>
+<ul>
+<li><p>Is the homework submitted (git tag time) before deadline? Take 10
+pts off per day for late submission.</p></li>
+<li><p>Is the final report in a human readable format (html,
+pdf)?</p></li>
+<li><p>Is the report prepared as a dynamic document (Quarto) for better
+reproducibility?</p></li>
+<li><p>Is the report clear (whole sentences, typos, grammar)? Do readers
+have a clear idea what’s going on and how results are produced by just
+reading the report? Take some points off if the solutions are too
+succinct to grasp, or there are too many typos/grammar.</p></li>
+</ul>
+<h3
+id="completeness-correctness-and-efficiency-of-solution-150150">Completeness,
+correctness and efficiency of solution: 150/150</h3>
+<ul>
+<li><p>Q1 (20/20)</p>
+<ul>
+<li>Q1.1 (10/10) Benchmarks all three functions with
+<code>system.time</code> and <code>pryr::object_size</code>. Correctly
+identifies <code>fread</code> as fastest. Reports memory for all three
+and compares data types.</li>
+<li>Q1.2 (10/10) Uses <code>col_factor()</code> for categorical columns.
+Reports memory at 48.19 MB (&lt; 50 MB).</li>
+</ul></li>
+<li><p>Q2 (80/80)</p>
+<ul>
+<li><p>Q2.1 (10/10) Code provided (eval:false). Correctly reports
+exceeding 3 minutes and aborted. Good explanation of memory
+exhaustion.</p></li>
+<li><p>Q2.2 (10/10) Code provided (eval:false). Correctly explains that
+column selection does not solve the issue since read_csv still reads the
+entire file.</p></li>
+<li><p>Q2.3 (15/15) Correct bash command with all 9 lab item IDs
+including 50862. Extracts columns $2, $5, $7, $10. Reports 33,712,352
+rows and read_csv timing.</p></li>
+<li><p>Q2.4 (15/15) Correct Arrow approach with
+<code>open_dataset</code>. Correct item IDs. Uses
+<code>arrange(subject_id, charttime, itemid)</code>. Row count and
+head(, 10) displayed. Good Apache Arrow explanation.</p></li>
+<li><p>Q2.5 (15/15) Full CSV correctly written to Parquet via
+<code>write_dataset</code>. Reports Parquet size (~2.6 GB). Correct
+filtering with <code>arrange()</code>. Row count and head(, 10) match
+Q2.4. Good Parquet explanation.</p></li>
+<li><p>Q2.6 (15/15) Correct DuckDB approach with <code>to_duckdb</code>.
+Uses <code>arrange(subject_id, charttime, itemid)</code>. Row count and
+head(, 10) match Q2.4/Q2.5. Good DuckDB explanation.</p></li>
+</ul></li>
+<li><p>Q3 (30/30) Converts chartevents.csv.gz to Parquet, then uses
+DuckDB to filter. Correct vital sign item IDs (220045, 220181, 220179,
+223761, 220210). Selects subject_id, itemid, charttime, valuenum. Uses
+<code>arrange()</code>. Row count and first 10 rows displayed.
+Well-documented steps.</p></li>
+<li><p>Q4 (20/20) Reports using GitHub Copilot and Claude Sonnet 4.5.
+Provides 5 instances of AI errors with screenshots.</p></li>
+</ul>
+<h3 id="usage-of-git-1010">Usage of Git: 10/10</h3>
+<ul>
+<li><p>Are branches (<code>main</code> and <code>develop</code>)
+correctly set up? Is the hw submission put into the <code>main</code>
+branch?</p></li>
+<li><p>Are there enough commits (&gt;=5) in develop branch? Are commit
+messages clear? The commits should span out not clustered the day before
+deadline.</p></li>
+<li><p>Is the hw2 submission tagged?</p></li>
+<li><p>Are the folders (<code>hw1</code>, <code>hw2</code>, …) created
+correctly?</p></li>
+<li><p>Do not put auxiliary and big data files into version
+control.</p></li>
+</ul>
+<h3 id="reproducibility-1010">Reproducibility: 10/10</h3>
+<ul>
+<li><p>Are the materials (files and instructions) submitted to the
+<code>main</code> branch sufficient for reproducing all the results?
+Just click the <code>Render</code> button will produce the final
+<code>html</code>?</p></li>
+<li><p>If necessary, are there clear instructions, either in report or
+in a separate file, how to reproduce the results?</p></li>
+</ul>
+<h3 id="r-code-style-1820">R code style: 18/20</h3>
+<ul>
+<li>[Rule 2.6] -2: R code line 220 exceeds 80 characters (89c:
+<code>filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |&gt;</code>).</li>
+</ul>
+</body>
+</html>
