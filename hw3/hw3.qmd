@@ -1,7 +1,7 @@
 ---
 title: "Biostat 203B Homework 3"
 subtitle: "Due Feb 22 @ 11:59PM"
-author: "Your Name and UID"
+author: "Rebekah Patel and 605566820"
 format:
   html:
     theme: cosmo
@@ -26,6 +26,7 @@ library(memuse)
 library(pryr)
 library(R.utils)
 library(tidyverse)
+library(data.table)
 ```
 
 Display your machine memory.
@@ -48,6 +49,107 @@ Do a similar visualization for the patient with `subject_id` 10063848 using ggpl
 
 Hint: We need to pull information from data files `patients.csv.gz`, `admissions.csv.gz`, `transfers.csv.gz`, `labevents.csv.gz`, `procedures_icd.csv.gz`, `diagnoses_icd.csv.gz`, `d_icd_procedures.csv.gz`, and `d_icd_diagnoses.csv.gz`. For the big file `labevents.csv.gz`, use the Parquet format you generated in Homework 2. For reproducibility, make the Parquet folder `labevents_pq` available at the current working directory `hw3`, for example, by a symbolic link. Make your code reproducible.
 
+```{bash}
+#create a symbolic link to the Parquet folder for labevents
+ln -s ~/BIOSTAT203B/203b-hw/hw2/pq_files labevents_pq
+```
+
+```{r}
+patient_id <- 10063848
+
+patient_data <- fread("~/mimic/hosp/patients.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  as_tibble()
+
+admission_data <- fread("~/mimic/hosp/admissions.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  as_tibble()
+
+patient_title = str_c("Patient ", patient_id, ", ", patient_data$gender, ", ", patient_data$anchor_age, " years old, ", str_to_title(admission_data$race[1]))
+
+patient_title
+```
+
+```{r}
+transfer_data <- fread("~/mimic/hosp/transfers.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  as_tibble()
+
+```
+
+```{r}
+labevents <- open_dataset("labevents_pq", format = "parquet") |>
+  to_duckdb() |>
+  filter(subject_id == patient_id) |>
+  collect()
+
+```
+```{r}
+procedures_icd <- fread("~/mimic/hosp/procedures_icd.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  left_join(
+    fread("~/mimic/hosp/d_icd_procedures.csv.gz"),
+    by = c("icd_code", "icd_version")) |>
+  as_tibble()
+
+fread("~/mimic/hosp/procedures_icd.csv.gz") |>
+  filter(subject_id == 10001217) |>
+  left_join(
+    fread("~/mimic/hosp/d_icd_procedures.csv.gz"),
+    by = c("icd_code", "icd_version")) |>
+  as_tibble()
+```
+
+```{r}
+diagnoses_icd <- fread("~/mimic/hosp/diagnoses_icd.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  left_join(
+    fread("~/mimic/hosp/d_icd_diagnoses.csv.gz"),
+    by = c("icd_code", "icd_version")
+  ) |>
+  as_tibble()
+
+top3 <- diagnoses_icd |>
+  group_by(icd_code, long_title) |>
+  summarise(count = n()) |>
+  arrange(desc(count)) |>
+  ungroup() |>
+  slice_head(n = 3) |>
+  select(long_title)
+str_top3 <- str_c(top3$long_title, collapse = "\n")
+```
+
+```{r}
+# Create the ADT history plot using ggplot2
+ggplot() +
+    geom_segment(data = transfer_data, 
+                 aes(x = intime, xend = outtime, 
+                     y = "ADT", yend = "ADT",
+                     color = careunit, 
+                     size = ifelse(grepl("ICU|CCU", careunit), 1.5, 0.5))) +
+  geom_point(data = procedures_icd, 
+             aes(x = chartdate, 
+                 y = "Procedure", 
+                 shape = str_sub(long_title, 1, 35))) +
+  geom_point(data = labevents, 
+             aes(x = charttime, y = "Lab"), shape = "+") +
+  labs(title = patient_title, 
+       subtitle = str_top3, 
+       x = "Calendar Time", 
+       shape = "Procedure", 
+       color = "Care Unit") +
+  scale_x_date(date_breaks = "1 week",
+               date_labels = "%b %d") +
+  theme(legend.position = "bottom", 
+        legend.box = "vertical",
+        legend.justification = "center",
+        axis.title.y = element_blank()) +
+    guides(size = "none", 
+           shape = guide_legend(ncol = 2))
+```
+
+
+
 ### Q1.2 ICU stays
 
 ICU stays are a subset of ADT history. This figure shows the vitals of the patient `10001217` during ICU stays. The x-axis is the calendar time, and the y-axis is the value of the vital. The color of the line represents the type of vital. The facet grid shows the abbreviation of the vital and the stay ID.
@@ -55,6 +157,10 @@ ICU stays are a subset of ADT history. This figure shows the vitals of the patie
 ![](10001217_icu.png)
 
 Do a similar visualization for the patient `10063848`.
+
+```{r}
+
+```
 
 ## Q2. ICU stays
 
