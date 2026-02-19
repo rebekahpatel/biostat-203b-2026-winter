@@ -77,6 +77,8 @@ transfer_data <- fread("~/mimic/hosp/transfers.csv.gz") |>
 
 ```
 
+
+
 ```{r}
 labevents <- open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
@@ -159,7 +161,19 @@ ICU stays are a subset of ADT history. This figure shows the vitals of the patie
 Do a similar visualization for the patient `10063848`.
 
 ```{r}
+icu_stays <- fread("~/mimic/icu/icustays.csv.gz") |>
+  filter(subject_id == patient_id) |>
+  as_tibble()
+```
 
+```{r}
+patient_vitals <- open_dataset("../hw2/pq_chart", format = "parquet") |>
+  to_duckdb() |>
+  select(subject_id, itemid, charttime, valuenum) |>
+  filter(itemid %in% c(220045, 220180, 220179, 223761, 220210),
+         subject_id == patient_id) |>
+  arrange(subject_id, charttime, itemid) |>
+  collect()
 ```
 
 ## Q2. ICU stays
