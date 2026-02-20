@@ -51,7 +51,7 @@ Hint: We need to pull information from data files `patients.csv.gz`, `admissions
 
 ```{bash}
 #create a symbolic link to the Parquet folder for labevents
-ln -s ~/BIOSTAT203B/203b-hw/hw2/pq_files labevents_pq
+# ln -s ~/BIOSTAT203B/203b-hw/hw2/pq_files labevents_pq
 ```
 
 ```{r}
@@ -67,14 +67,12 @@ admission_data <- fread("~/mimic/hosp/admissions.csv.gz") |>
 
 patient_title = str_c("Patient ", patient_id, ", ", patient_data$gender, ", ", patient_data$anchor_age, " years old, ", str_to_title(admission_data$race[1]))
 
-patient_title
 ```
 
 ```{r}
 transfer_data <- fread("~/mimic/hosp/transfers.csv.gz") |>
   filter(subject_id == patient_id) |>
   as_tibble()
-
 ```
 
 
@@ -89,13 +87,6 @@ labevents <- open_dataset("labevents_pq", format = "parquet") |>
 ```{r}
 procedures_icd <- fread("~/mimic/hosp/procedures_icd.csv.gz") |>
   filter(subject_id == patient_id) |>
-  left_join(
-    fread("~/mimic/hosp/d_icd_procedures.csv.gz"),
-    by = c("icd_code", "icd_version")) |>
-  as_tibble()
-
-fread("~/mimic/hosp/procedures_icd.csv.gz") |>
-  filter(subject_id == 10001217) |>
   left_join(
     fread("~/mimic/hosp/d_icd_procedures.csv.gz"),
     by = c("icd_code", "icd_version")) |>
@@ -128,25 +119,25 @@ ggplot() +
                  aes(x = intime, xend = outtime, 
                      y = "ADT", yend = "ADT",
                      color = careunit, 
-                     size = ifelse(grepl("ICU|CCU", careunit), 1.5, 0.5))) +
+                     linewidth = str_detect(careunit, "ICU|CCU"))) +
   geom_point(data = procedures_icd, 
              aes(x = chartdate, 
                  y = "Procedure", 
                  shape = str_sub(long_title, 1, 35))) +
   geom_point(data = labevents, 
-             aes(x = charttime, y = "Lab"), shape = "+") +
+             aes(x = storetime, y = "Lab"), shape = "+") +
   labs(title = patient_title, 
        subtitle = str_top3, 
        x = "Calendar Time", 
        shape = "Procedure", 
        color = "Care Unit") +
-  scale_x_date(date_breaks = "1 week",
+  scale_x_datetime(date_breaks = "1 week",
                date_labels = "%b %d") +
   theme(legend.position = "bottom", 
         legend.box = "vertical",
         legend.justification = "center",
         axis.title.y = element_blank()) +
-    guides(size = "none", 
+    guides(linewidth = "none", 
            shape = guide_legend(ncol = 2))
 ```
 
@@ -169,11 +160,21 @@ icu_stays <- fread("~/mimic/icu/icustays.csv.gz") |>
 ```{r}
 patient_vitals <- open_dataset("../hw2/pq_chart", format = "parquet") |>
   to_duckdb() |>
-  select(subject_id, itemid, charttime, valuenum) |>
-  filter(itemid %in% c(220045, 220180, 220179, 223761, 220210),
-         subject_id == patient_id) |>
+  select(subject_id, stay_id, itemid, charttime, valuenum) |>
+  filter(subject_id == patient_id,
+         itemid %in% c(220045, 220180, 220179, 223761, 220210)) |>
   arrange(subject_id, charttime, itemid) |>
   collect()
+
+```
+
+```{r}
+# Create the ICU vitals plot using ggplot2
+ggplot(patient_vitals, aes(x = charttime, y = valuenum, color = factor(itemid))) +
+  geom_line() +
+  geom_point() +
+  facet_grid(itemid ~ stay_id, scales = "free") +
+  labs(title = patient_title)
 ```
 
 ## Q2. ICU stays
@@ -187,9 +188,31 @@ zcat < ~/mimic/icu/icustays.csv.gz | head
 
 Import `icustays.csv.gz` as a tibble `icustays_tble`. 
 
+```{r}
+icustays_tble <- fread("~/mimic/icu/icustays.csv.gz")
+```
+
 ### Q2.2 Summary and visualization
 
 How many unique `subject_id`? Can a `subject_id` have multiple ICU stays? Summarize the number of ICU stays per `subject_id` by graphs. 
+
+```{r}
+icustays_tble |>
+  summarise(num_subjects = n_distinct(subject_id))
+```
+
+
+```{r}
+
+icustays_tble |>
+  group_by(subject_id) |>
+  summarise(num_stays = n()) |>
+  arrange(desc(num_stays)) |>
+  print(width = Inf) |>
+  ggplot(aes(x = num_stays)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Number of ICU Stays per Subject ID", x = "Number of ICU Stays", y = "Count of Subject IDs")
+```
 
 ## Q3. `admissions` data
 
@@ -201,6 +224,12 @@ zcat < ~/mimic/hosp/admissions.csv.gz | head
 ### Q3.1 Ingestion
 
 Import `admissions.csv.gz` as a tibble `admissions_tble`.
+
+```{r}
+admissions_tble <- fread("~/mimic/hosp/admissions.csv.gz") |>
+  as_tibble() |>
+  print(n=10, wide=Inf)
+```
 
 ### Q3.2 Summary and visualization
 
