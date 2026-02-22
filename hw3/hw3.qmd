@@ -133,6 +133,7 @@ ggplot() +
        color = "Care Unit") +
   scale_x_datetime(date_breaks = "1 week",
                date_labels = "%b %d") +
+  scale_y_discrete(limits = rev) +
   theme(legend.position = "bottom", 
         legend.box = "vertical",
         legend.justification = "center",
