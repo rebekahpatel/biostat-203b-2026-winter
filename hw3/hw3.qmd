@@ -158,24 +158,40 @@ icu_stays <- fread("~/mimic/icu/icustays.csv.gz") |>
   as_tibble()
 ```
 
+```{bash}
+#ln -s ~/BIOSTAT203B/203b-hw/hw2/pq_chart chartevents_pq
+```
+
 ```{r}
-patient_vitals <- open_dataset("../hw2/pq_chart", format = "parquet") |>
+patient_vitals <- open_dataset("chartevents_pq", format = "parquet") |>
   to_duckdb() |>
-  select(subject_id, stay_id, itemid, charttime, valuenum) |>
   filter(subject_id == patient_id,
-         itemid %in% c(220045, 220180, 220179, 223761, 220210)) |>
-  arrange(subject_id, charttime, itemid) |>
-  collect()
+         itemid %in% c(220045, 220181, 220179, 223761, 220210)) |>
+  collect() |>
+  left_join(
+    fread("~/mimic/icu/d_items.csv.gz"),
+    by = "itemid"
+  ) |>
+  print(width=Inf)
 
 ```
 
 ```{r}
+
 # Create the ICU vitals plot using ggplot2
-ggplot(patient_vitals, aes(x = charttime, y = valuenum, color = factor(itemid))) +
+ggplot(patient_vitals, aes(x = charttime, y = valuenum, color = label)) +
   geom_line() +
   geom_point() +
-  facet_grid(itemid ~ stay_id, scales = "free") +
-  labs(title = patient_title)
+  facet_grid2(abbreviation ~ stay_id, scales = "free") +
+  scale_x_datetime(date_labels = "%b %d %H:%M") +
+  labs(title = str_c("Patient ", patient_id, " ICU stays - Vitals")) +
+  guides(color = "none") +
+  theme(
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank()
+  ) +
+  guides(x = guide_axis(n.dodge = 2))
+
 ```
 
 ## Q2. ICU stays
@@ -204,7 +220,6 @@ icustays_tble |>
 
 
 ```{r}
-
 icustays_tble |>
   group_by(subject_id) |>
   summarise(num_stays = n()) |>
@@ -212,7 +227,9 @@ icustays_tble |>
   print(width = Inf) |>
   ggplot(aes(x = num_stays)) +
   geom_histogram(binwidth = 1) +
-  labs(title = "Number of ICU Stays per Subject ID", x = "Number of ICU Stays", y = "Count of Subject IDs")
+  labs(title = "Number of ICU Stays per Subject ID", 
+       x = "Number of ICU Stays", 
+       y = "Count of Subject IDs")
 ```
 
 ## Q3. `admissions` data
