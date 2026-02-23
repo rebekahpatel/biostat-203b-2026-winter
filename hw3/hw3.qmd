@@ -182,7 +182,7 @@ patient_vitals <- open_dataset("chartevents_pq", format = "parquet") |>
 ggplot(patient_vitals, aes(x = charttime, y = valuenum, color = label)) +
   geom_line() +
   geom_point() +
-  facet_grid2(abbreviation ~ stay_id, scales = "free") +
+  facet_grid(abbreviation ~ stay_id, scales = "free") +
   scale_x_datetime(date_labels = "%b %d %H:%M") +
   labs(title = str_c("Patient ", patient_id, " ICU stays - Vitals")) +
   guides(color = "none") +
@@ -397,11 +397,11 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 ```{r}
 vital_stay <- open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
-  filter(itemid %in% c(220045, 220181, 220179, 223761, 220210)) |>
+  filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
   collect() |>
   left_join(
-    fread("~/mimic/icu/d_items.csv.gz"),
-    by = "itemid"
+    icustays_tble,
+    by = c("subject_id", "hadm_id")
   ) |>
   print(width=Inf)
 ```
