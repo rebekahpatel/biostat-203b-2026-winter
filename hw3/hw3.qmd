@@ -206,7 +206,9 @@ zcat < ~/mimic/icu/icustays.csv.gz | head
 Import `icustays.csv.gz` as a tibble `icustays_tble`. 
 
 ```{r}
-icustays_tble <- fread("~/mimic/icu/icustays.csv.gz")
+icustays_tble <- fread("~/mimic/icu/icustays.csv.gz") |>
+  as_tibble() |>
+  print(width=Inf)
 ```
 
 ### Q2.2 Summary and visualization
@@ -217,13 +219,11 @@ How many unique `subject_id`? Can a `subject_id` have multiple ICU stays? Summar
 icustays_tble |>
   summarise(num_subjects = n_distinct(subject_id))
 ```
-
-
 ```{r}
 icustays_tble |>
   group_by(subject_id) |>
   summarise(num_stays = n()) |>
-  arrange(desc(num_stays)) |>
+  ungroup() |>
   print(width = Inf) |>
   ggplot(aes(x = num_stays)) +
   geom_histogram(binwidth = 1) +
@@ -231,6 +231,7 @@ icustays_tble |>
        x = "Number of ICU Stays", 
        y = "Count of Subject IDs")
 ```
+**Solution:** There are 65,366 patients admitted into the hospital. There are many subjects that have multiple icu stays.  
 
 ## Q3. `admissions` data
 
@@ -243,6 +244,7 @@ zcat < ~/mimic/hosp/admissions.csv.gz | head
 
 Import `admissions.csv.gz` as a tibble `admissions_tble`.
 
+**Solution:**
 ```{r}
 admissions_tble <- fread("~/mimic/hosp/admissions.csv.gz") |>
   as_tibble() |>
@@ -262,6 +264,66 @@ According to the [MIMIC-IV documentation](https://mimic.mit.edu/docs/iv/about/co
 
 > All dates in the database have been shifted to protect patient confidentiality. Dates will be internally consistent for the same patient, but randomly distributed in the future. Dates of birth which occur in the present time are not true dates of birth. Furthermore, dates of birth which occur before the year 1900 occur if the patient is older than 89. In these cases, the patient’s age at their first admission has been fixed to 300.
 
+**Solution:** The graph of the number of admissions per patient.
+```{r}
+admissions_tble |>
+  group_by(subject_id) |>
+  summarise(num_admissions = n()) |>
+  ungroup() |>
+  count(num_admissions) |>
+  print(width = Inf) |>
+  
+  ggplot(aes(x = num_admissions, y = n)) +
+  geom_col(binwidth = 1) +
+  labs(title = "Number of Admissions per Patient", 
+       x = "Number of Admissions", 
+       y = "Count of Patients")
+```
+Majority of patients had only a few admissions, with 1 admission being the most common. There are some patients with multiple admissions, but they are relatively rare. This is likely because most patients only require one or a few hospitalizations in their lifetime, while a smaller subset of patients may have chronic conditions or complex medical needs that require multiple hospitalizations.
+
+The graph of the admission hour.
+```{r}
+admissions_tble |>
+  mutate(admission_hour = hour(admittime)) |>
+  count(admission_hour) |>
+  print(width = Inf) |>
+  ggplot(aes(x = admission_hour, y = n)) +
+  geom_col(binwidth = 1) +
+  labs(title = "Distribution of Admission Hour", 
+       x = "Admission Hour", 
+       y = "Count of Admissions")
+```
+After 12am, there is a dip in admissions, except for a spike at 7am, and then an increase after 10am. Admissions continue to rise until 4pm and stay at high levels until 12am. The spike at 7am may be due to the fact that many patients are admitted to the hospital in the morning after being evaluated in the emergency department or after being transferred from another hospital. The increase after 10am may be due to the fact that many elective surgeries and procedures are scheduled in the morning, leading to a higher number of admissions during this time. 
+
+The graph for admission minute
+```{r}
+admissions_tble |>
+  mutate(admission_minute = minute(admittime)) |>
+  count(admission_minute) |>
+  print(width = Inf) |>
+  ggplot(aes(x = admission_minute, y = n)) +
+  geom_col(binwidth = 1) +
+  labs(title = "Distribution of Admission Minute", 
+       x = "Admission Minute", 
+       y = "Count of Admissions") +
+  scale_x_continuous(breaks = seq(0, 59, by = 5))
+
+```
+The distribution of admission minute is relatively uniform, with spikes at 0, 15, 30, and 45 minutes, in decreasing magnitude. This may be due to the fact that many admissions are scheduled on the hour or at quarter-hour intervals, leading to a higher number of admissions at these times.
+
+The graph of length of hospital stay. 
+```{r}
+admissions_tble |>
+  mutate(los_days = as.numeric(difftime(dischtime, admittime, units = "days"))) |>
+  print(width = Inf) |>
+  ggplot(aes(x = los_days)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Distribution of Length of Hospital Stay", 
+       x = "Length of Hospital Stay (days)", 
+       y = "Count of Admissions")
+```
+Majority of admissions have stays of less than 50 days, with a long tail of admissions with longer stays. The distribution is right-skewed, indicating that most patients have relatively short hospital stays, while a smaller number of patients have much longer stays. The long tail may be due to the fact that some patients have complex medical conditions or complications that require extended hospitalization. It is normal for patients to have shorter stays since once patients are diagnosed and stable, the system pushes to discharge.
+
 ## Q4. `patients` data
 
 Patient information is available in `patients.csv.gz`. See <https://mimic.mit.edu/docs/iv/modules/hosp/patients/> for details of each field in this file. The first 10 lines are
@@ -273,9 +335,45 @@ zcat < ~/mimic/hosp/patients.csv.gz | head
 
 Import `patients.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/hosp/patients/>) as a tibble `patients_tble`.
 
+**Solution:**
+```{r}
+patients_tble <- fread("~/mimic/hosp/patients.csv.gz") |>
+  as_tibble() |>
+  print(n=10, wide=Inf)
+```
+
 ### Q4.2 Summary and visualization
 
 Summarize variables `gender` and `anchor_age` by graphics, and explain any patterns you see.
+
+**Solution:** Summarizing gender:
+```{r}
+patients_tble |>
+  count(gender) |>
+  print(width = Inf) |>
+  ggplot(aes(x = gender, y = n, fill = gender)) +
+  geom_col() +
+  labs(title = "Distribution of Gender", 
+       x = "Gender (F/M)",
+       y = "Count of Patients")
+
+```
+There are more females than males in the MIMIC-IV dataset. This may be due to the fact that females tend to have longer life expectancy than males, and therefore may be more likely to be admitted to the hospital and require ICU care. Additionally, certain medical conditions that are more prevalent in females, such as autoimmune diseases and certain types of cancer, may also contribute to the higher number of female patients in the dataset. 
+
+Summarizing anchor age:
+```{r}
+patients_tble |>
+  count(anchor_age) |>
+  print(width = Inf) |>
+  ggplot(aes(x = anchor_age, y = n)) +
+  geom_col() +
+  labs(title = "Distribution of Anchor Age",
+       x = "Anchor Age",
+       y = "Count of Patients") +
+  scale_x_continuous(breaks = seq(0, 100, by = 5))
+
+```
+There is only data of adults, ages 18 and over. There is a increase from 18-21, then a decrease until 40, where it levels off until 45. From 45-55 there is an small increase, and then a decrease until 89. At 91, there is a large spike, which is because the data counts all ages over 89 as 91. The high frequency of patients in their 20s may be due to the fact that this age group is more likely to be admitted to the hospital for reckless and risky behavior, since they are more likely to engage in activities such as driving under the influence, participating in extreme sports, and engaging in other high-risk behaviors that can lead to accidents and injuries. Additionally, this age group may also be more likely to require hospitalization for mental health issues, such as depression and anxiety, which can also contribute to the higher frequency of patients in their 20s. The decrease in frequency from ages 30-50 may be due to the fact that this age group is generally healthy and less likely to require hospitalization based on stable living. The increase in frequency from ages 45-65 may be due to the fact that this age group is more likely to develop chronic medical conditions that require hospitalization. The decrease in frequency from ages 65-89 may be due to the fact that some patients in this age group may have already passed away or may be receiving care in long-term care facilities rather than being admitted to the hospital. The spike at age 91 is due to the fact that all patients over 89 are counted as 91, which may inflate the number of patients in this age group. Also, patients over 89 may be more likely to require hospitalization due to old-age and poor care-taking from facilities.
 
 ## Q5. Lab results
 
@@ -295,6 +393,18 @@ We are interested in the lab measurements of albumin (50862), creatinine (50912)
 
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
+
+```{r}
+vital_stay <- open_dataset("labevents_pq", format = "parquet") |>
+  to_duckdb() |>
+  filter(itemid %in% c(220045, 220181, 220179, 223761, 220210)) |>
+  collect() |>
+  left_join(
+    fread("~/mimic/icu/d_items.csv.gz"),
+    by = "itemid"
+  ) |>
+  print(width=Inf)
+```
 
 ## Q6. Vitals from charted events
 
