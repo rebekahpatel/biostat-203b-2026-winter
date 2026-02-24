@@ -395,25 +395,18 @@ We are interested in the lab measurements of albumin (50862), creatinine (50912)
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
 ```{r}
-vital_stay <- open_dataset("labevents_pq", format = "parquet") |>
+labevents_tble <- open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
-  select("labevent_id", "subject_id", "hadm_id","itemid",
-         "charttime","storetime", "valuenum", "valueuom") |>
+  select(subject_id, itemid, charttime, storetime, valuenum) |>
   filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 
                        50882, 51221, 51301, 50931)) |>
   left_join(
-    icustays_tble,
-    by = c("subject_id", "hadm_id"),
+    select(icustays_tble, subject_id, stay_id, intime),
+    by = "subject_id",
     copy = TRUE
   ) |>
-  collect() |>
-  print(width=Inf)
-```
-
-```{r}
-labevents_tble <- vital_stay |>
   filter(!is.na(intime), storetime < intime) |>
-  group_by(subject_id, hadm_id, stay_id, itemid) |>
+  group_by(subject_id, stay_id, itemid) |>
   slice_max(storetime, n = 1, with_ties = FALSE) |>
   ungroup() |>
   mutate(lab = case_when(
@@ -427,10 +420,13 @@ labevents_tble <- vital_stay |>
     itemid == 51301 ~ "white_blood_cell_count",
     itemid == 50931 ~ "glucose"
   )) |>
-  select(subject_id, hadm_id, stay_id, lab, valuenum) |>
-  pivot_wider(names_from = lab, values_from = valuenum) |>
-  arrange(subject_id, stay_id) |>
+  select(subject_id, stay_id, lab, valuenum) |>
+  collect() |>
+  pivot_wider(names_from = lab, values_from = valuenum) %>%
+  relocate(sort(names(.)[-(1:2)]), .after = 2) %>%
+  arrange(subject_id, stay_id) %>%
   print(width = Inf)
+
 ```
 
 ```{r}
@@ -456,6 +452,60 @@ We are interested in the vitals for ICU patients: heart rate (220045), systolic 
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `chartevents_pq` folder available at the current working directory, for example, by a symbolic link.
 
+**Solution:** Read d_items.csv.gz to see all icu codes.
+Read 
+```{r}
+d_items <- fread("~/mimic/icu/d_items.csv.gz") |>
+  as_tibble() |>
+  print(width=Inf)
+```
+Let's pick the items I want to look at specifically.
+```{r}
+chartitem_itemid <- d_items |>
+  filter(itemid %in% c(
+    220045,
+    220179,
+    220180,
+    223761,
+    220210
+    )) |>
+  print(width=Inf)
+
+clean_names <- chartitem_itemid$label |>
+  str_to_lower() |>
+  str_replace_all(" ", "_") |>
+  str_replace_all("[^a-z0-9_]", "")
+
+name_map <- setNames(as.character(chartitem_itemid$itemid), clean_names)
+```
+
+
+```{r}
+chartevents_tble <- open_dataset("chartevents_pq", format = "parquet") |>
+  filter(
+    itemid %in% chartitem_itemid$itemid
+    ) |>
+  to_duckdb() |>
+  select(subject_id, stay_id, itemid,
+         charttime, storetime, valuenum) |>
+  left_join(
+    select(icustays_tble, stay_id, intime, outtime),
+    by = c("stay_id"),
+    copy = TRUE
+  ) |>
+  filter(storetime >= intime, storetime <= outtime) |>
+  group_by(subject_id, stay_id, itemid) |>
+  slice_min(storetime, n = 1, with_ties = TRUE) |>
+  summarise(
+    valuenum = mean(valuenum, na.rm = TRUE),
+    .groups = "drop") |>
+  pivot_wider(names_from = itemid, values_from = valuenum) |>
+  rename(!!!name_map) |>
+  collect() |>
+  arrange(subject_id, stay_id) %>%
+  relocate(sort(names(.)[-(1:2)]), .after = 2) %>%
+  print(width = Inf)
+```
 
 
 ## Q7. Putting things together
@@ -471,12 +521,28 @@ Let us create a tibble `mimic_icu_cohort` for all ICU stays, where rows are all 
 The final `mimic_icu_cohort` should have one row per ICU stay and columns for each variable.
 
 ![](mimic_icu_cohort.png)
+```{r}
+mimic_icu_cohort <- icustays_tble |>
+  left_join(admissions_tble, by = c("subject_id", "hadm_id")) |>
+  left_join(patients_tble, by = "subject_id") |>
+  left_join(labevents_tble, by = c("subject_id", "stay_id")) |>
+  left_join(chartevents_tble, by = c("subject_id", "stay_id")) |>
+  filter(anchor_age >= 18) |>
+  print(width = Inf)
+
+```
 
 ## Q8. Exploratory data analysis (EDA)
 
 Summarize the following information about the ICU stay cohort `mimic_icu_cohort` using appropriate numerics or graphs:
 
 - Length of ICU stay `los` vs demographic variables (race, insurance, marital_status, gender, age at intime)
+```{r}
+mimic_icu_cohort |>
+  ggplot(aes(x = los)) +
+  
+
+```
 
 - Length of ICU stay `los` vs the last available lab measurements before ICU stay
 
