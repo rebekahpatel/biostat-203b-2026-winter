@@ -563,17 +563,80 @@ mimic_icu_cohort |>
 - Length of ICU stay `los` vs the last available lab measurements before ICU stay
 
 ```{r}
+labs = c("albumin", "creatinine", "potassium", "sodium", "chloride", 
+        "bicarbonate", "hematocrit", "white_blood_cell_count", "glucose")
 
-ggplot(mimic_icu_cohort, aes(x = los))
+mimic_icu_cohort %>%
+  select(los, all_of(labs)) %>%
+  pivot_longer(-los, names_to = "lab", values_to = "value") %>%
+  ggplot(aes(x = los, y = value)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  facet_wrap(~ lab, scales = "free") +
+  labs(
+    title = "ICU Length of Stay vs Last Lab Measurements Before ICU",
+    x = "ICU LOS (days)",
+    y = "Last Lab Values before ICU"
+  ) +
+  theme_bw()
 
 ```
 
 - Length of ICU stay `los` vs the first vital measurements within the ICU stay
 
+```{r}
+
+mimic_icu_cohort %>%
+  select(los, all_of(names(name_map))) %>%
+  pivot_longer(-los, names_to = "lab", values_to = "value") %>%
+  ggplot(aes(x = los, y = value)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  facet_wrap(~ lab, scales = "free") +
+  labs(
+    title = "ICU Length of Stay vs First VItal Measurements in ICU",
+    x = "ICU Length of Stay (days)",
+    y = "First Vital Measurements in ICU Stay"
+  ) +
+  theme_bw()
+
+```
+
 - Length of ICU stay `los` vs first ICU unit
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = first_careunit, y = los)) +
+  geom_point(alpha = 0.7) +
+  labs(
+    title = "ICU Length of Stay vs First ICU Unit",
+    x = "First ICU Unit",
+    y = "ICU LOS (days)"
+  ) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+
+```
 
 ## Q9. AI assistant
 
 Which AI assistants (e.g., GitHub Copilot) do you use when working on this assignment? Which AI model (e.g., GPT-5 mini, GPT-5, Claude Sonnet 4.5) does the AI assistant use? How do you use them? Do you think they help improve your productivity? 
 
 Give 5 instances where AI model gave incorrect or misleading answers. You can use screenshots or copy-paste the Q&A.
+
+I used GitHub Copilot and Claude, which ran the Claude Sonnet 4.6 Extended Model. I used Copilot while writing my code as it gave me suggestions on what to code next. I used Claude for debugging and asking it questions to understand pieces of code. They did help my productivity quite a bit. There were many times where I was stuck with errors until the model finally gave a suggestion that worked to solve the problem.
+5 instances where the AI models gave incorrect or misleading answers:
+
+1) Copilot suggested an incorrect filter statement while reading the patients.csv.gz.
+![](img/incorrect_filtering.png)
+
+2) Copilot suggest an incorrect pile path to reading transfers.csv.gz.
+![](img/incorrect_path.png)
+
+3) Copilot suggested the wrong number of patients after I found the answer earlier.
+![](img/incorrect_patient_count.png)
+
+4) Copilot suggested selecting non-existent columns in a table.
+![](img/incorrect_tables.png)
+
+5) Claude intitally gave me incorrect code, the first three statements in the image. I had to then correct it by asking why it chose that order, and it listed to me its mistake and changed it to the correct order of the statements.
+![](img/string_manipulation.png)
+
