@@ -397,13 +397,45 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 ```{r}
 vital_stay <- open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
-  filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) |>
-  collect() |>
+  select("labevent_id", "subject_id", "hadm_id","itemid",
+         "charttime","storetime", "valuenum", "valueuom") |>
+  filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 
+                       50882, 51221, 51301, 50931)) |>
   left_join(
     icustays_tble,
-    by = c("subject_id", "hadm_id")
+    by = c("subject_id", "hadm_id"),
+    copy = TRUE
   ) |>
+  collect() |>
   print(width=Inf)
+```
+
+```{r}
+labevents_tble <- vital_stay |>
+  filter(!is.na(intime), storetime < intime) |>
+  group_by(subject_id, hadm_id, stay_id, itemid) |>
+  slice_max(storetime, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(lab = case_when(
+    itemid == 50862 ~ "albumin",
+    itemid == 50912 ~ "creatinine",
+    itemid == 50971 ~ "potassium",
+    itemid == 50983 ~ "sodium",
+    itemid == 50902 ~ "chloride",
+    itemid == 50882 ~ "bicarbonate",
+    itemid == 51221 ~ "hematocrit",
+    itemid == 51301 ~ "white_blood_cell_count",
+    itemid == 50931 ~ "glucose"
+  )) |>
+  select(subject_id, hadm_id, stay_id, lab, valuenum) |>
+  pivot_wider(names_from = lab, values_from = valuenum) |>
+  arrange(subject_id, stay_id) |>
+  print(width = Inf)
+```
+
+```{r}
+labevents_tble |>
+  summarise(num_stays = n_distinct(stay_id))
 ```
 
 ## Q6. Vitals from charted events
@@ -423,6 +455,8 @@ We are interested in the vitals for ICU patients: heart rate (220045), systolic 
 ![](chartevents_tble.png)
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `chartevents_pq` folder available at the current working directory, for example, by a symbolic link.
+
+
 
 ## Q7. Putting things together
 
