@@ -65,7 +65,10 @@ admission_data <- fread("~/mimic/hosp/admissions.csv.gz") |>
   filter(subject_id == patient_id) |>
   as_tibble()
 
-patient_title = str_c("Patient ", patient_id, ", ", patient_data$gender, ", ", patient_data$anchor_age, " years old, ", str_to_title(admission_data$race[1]))
+patient_title = str_c("Patient ", patient_id, ", ", 
+                      patient_data$gender, ", ",
+                      patient_data$anchor_age, " years old, ", 
+                      str_to_title(admission_data$race[1]))
 
 ```
 
@@ -75,17 +78,17 @@ transfer_data <- fread("~/mimic/hosp/transfers.csv.gz") |>
   as_tibble()
 ```
 
-
-
 ```{r}
-labevents <- open_dataset("labevents_pq", format = "parquet") |>
+labevents <- 
+  open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
   filter(subject_id == patient_id) |>
   collect()
 
 ```
 ```{r}
-procedures_icd <- fread("~/mimic/hosp/procedures_icd.csv.gz") |>
+procedures_icd <- 
+  fread("~/mimic/hosp/procedures_icd.csv.gz") |>
   filter(subject_id == patient_id) |>
   left_join(
     fread("~/mimic/hosp/d_icd_procedures.csv.gz"),
@@ -94,7 +97,8 @@ procedures_icd <- fread("~/mimic/hosp/procedures_icd.csv.gz") |>
 ```
 
 ```{r}
-diagnoses_icd <- fread("~/mimic/hosp/diagnoses_icd.csv.gz") |>
+diagnoses_icd <- 
+  fread("~/mimic/hosp/diagnoses_icd.csv.gz") |>
   filter(subject_id == patient_id) |>
   left_join(
     fread("~/mimic/hosp/d_icd_diagnoses.csv.gz"),
@@ -109,6 +113,7 @@ top3 <- diagnoses_icd |>
   ungroup() |>
   slice_head(n = 3) |>
   select(long_title)
+
 str_top3 <- str_c(top3$long_title, collapse = "\n")
 ```
 
@@ -116,8 +121,10 @@ str_top3 <- str_c(top3$long_title, collapse = "\n")
 # Create the ADT history plot using ggplot2
 ggplot() +
     geom_segment(data = transfer_data, 
-                 aes(x = intime, xend = outtime, 
-                     y = "ADT", yend = "ADT",
+                 aes(x = intime, 
+                     xend = outtime, 
+                     y = "ADT", 
+                     yend = "ADT",
                      color = careunit, 
                      linewidth = str_detect(careunit, "ICU|CCU"))) +
   geom_point(data = procedures_icd, 
@@ -125,7 +132,8 @@ ggplot() +
                  y = "Procedure", 
                  shape = str_sub(long_title, 1, 35))) +
   geom_point(data = labevents, 
-             aes(x = storetime, y = "Lab"), shape = "+") +
+             aes(x = storetime, y = "Lab"), 
+             shape = "+") +
   labs(title = patient_title, 
        subtitle = str_top3, 
        x = "Calendar Time", 
@@ -153,7 +161,8 @@ ICU stays are a subset of ADT history. This figure shows the vitals of the patie
 Do a similar visualization for the patient `10063848`.
 
 ```{r}
-icu_stays <- fread("~/mimic/icu/icustays.csv.gz") |>
+icu_stays <- 
+  fread("~/mimic/icu/icustays.csv.gz") |>
   filter(subject_id == patient_id) |>
   as_tibble()
 ```
@@ -163,10 +172,12 @@ icu_stays <- fread("~/mimic/icu/icustays.csv.gz") |>
 ```
 
 ```{r}
-patient_vitals <- open_dataset("chartevents_pq", format = "parquet") |>
+patient_vitals <- 
+  open_dataset("chartevents_pq", format = "parquet") |>
   to_duckdb() |>
   filter(subject_id == patient_id,
-         itemid %in% c(220045, 220181, 220179, 223761, 220210)) |>
+         itemid %in% c(220045, 220181, 
+                       220179, 223761, 220210)) |>
   collect() |>
   left_join(
     fread("~/mimic/icu/d_items.csv.gz"),
@@ -179,12 +190,16 @@ patient_vitals <- open_dataset("chartevents_pq", format = "parquet") |>
 ```{r}
 
 # Create the ICU vitals plot using ggplot2
-ggplot(patient_vitals, aes(x = charttime, y = valuenum, color = label)) +
+ggplot(patient_vitals, 
+       aes(x = charttime, y = valuenum, 
+           color = label)) +
   geom_line() +
   geom_point() +
   facet_grid(abbreviation ~ stay_id, scales = "free") +
   scale_x_datetime(date_labels = "%b %d %H:%M") +
-  labs(title = str_c("Patient ", patient_id, " ICU stays - Vitals")) +
+  labs(
+    title = str_c("Patient ", patient_id, " ICU stays - Vitals")
+    ) +
   guides(color = "none") +
   theme(
     axis.title.y = element_blank(),
@@ -206,7 +221,8 @@ zcat < ~/mimic/icu/icustays.csv.gz | head
 Import `icustays.csv.gz` as a tibble `icustays_tble`. 
 
 ```{r}
-icustays_tble <- fread("~/mimic/icu/icustays.csv.gz") |>
+icustays_tble <- 
+  fread("~/mimic/icu/icustays.csv.gz") |>
   as_tibble() |>
   print(width=Inf)
 ```
@@ -231,7 +247,7 @@ icustays_tble |>
        x = "Number of ICU Stays", 
        y = "Count of Subject IDs")
 ```
-**Solution:** There are 65,366 patients admitted into the hospital. There are many subjects that have multiple icu stays.  
+**Solution:** There are 65,366 patients admitted into the hospital. Majority of patients only have one to two stays, but there are patients who have more than 10 stays.
 
 ## Q3. `admissions` data
 
@@ -246,7 +262,8 @@ Import `admissions.csv.gz` as a tibble `admissions_tble`.
 
 **Solution:**
 ```{r}
-admissions_tble <- fread("~/mimic/hosp/admissions.csv.gz") |>
+admissions_tble <- 
+  fread("~/mimic/hosp/admissions.csv.gz") |>
   as_tibble() |>
   print(n=10, wide=Inf)
 ```
@@ -279,7 +296,7 @@ admissions_tble |>
        x = "Number of Admissions", 
        y = "Count of Patients")
 ```
-Majority of patients had only a few admissions, with 1 admission being the most common. There are some patients with multiple admissions, but they are relatively rare. This is likely because most patients only require one or a few hospitalizations in their lifetime, while a smaller subset of patients may have chronic conditions or complex medical needs that require multiple hospitalizations.
+Majority of patients had only a few admissions, with 1 admission being the most common. There are some patients with over 12 admissions, but they are relatively rare. This is likely because most patients only require one or a few hospitalizations in their lifetime, while a smaller subset of patients may have chronic conditions or complex medical needs that require multiple hospitalizations.
 
 The graph of the admission hour.
 ```{r}
@@ -293,7 +310,7 @@ admissions_tble |>
        x = "Admission Hour", 
        y = "Count of Admissions")
 ```
-After 12am, there is a dip in admissions, except for a spike at 7am, and then an increase after 10am. Admissions continue to rise until 4pm and stay at high levels until 12am. The spike at 7am may be due to the fact that many patients are admitted to the hospital in the morning after being evaluated in the emergency department or after being transferred from another hospital. The increase after 10am may be due to the fact that many elective surgeries and procedures are scheduled in the morning, leading to a higher number of admissions during this time. 
+After 12am, there is a dip in admissions, except for a spike at 7am, and then an increase after 10am. Admissions continue to rise until 4pm and stay at high levels until 12am. The spike at 7am may be due to the fact that many patients are admitted to the hospital in the morning after being evaluated in the emergency department or after being transferred from another hospital. The increase after 10am may be due to the fact that many elective surgeries and procedures are scheduled in the morning, leading to a higher number of admissions during this time. Also more accidents or emergencies are more likely to occur during daytime hours as more people are active. This may be why there is a increase from 10am to 12am, and then a dip until 7am.
 
 The graph for admission minute
 ```{r}
@@ -309,12 +326,14 @@ admissions_tble |>
   scale_x_continuous(breaks = seq(0, 59, by = 5))
 
 ```
-The distribution of admission minute is relatively uniform, with spikes at 0, 15, 30, and 45 minutes, in decreasing magnitude. This may be due to the fact that many admissions are scheduled on the hour or at quarter-hour intervals, leading to a higher number of admissions at these times.
+The distribution of admission minute is relatively uniform, with spikes at 0, 15, 30, and 45 minutes, in decreasing magnitude. This may be due to the fact that many admissions are scheduled on the hour or at quarter-hour intervals, leading to a higher number of admissions at these times. Surgeries and other events that can be scheduled may occur at these quarter-hour or hour intervals, which leads to increased admissions at these times.
 
 The graph of length of hospital stay. 
 ```{r}
 admissions_tble |>
-  mutate(los_days = as.numeric(difftime(dischtime, admittime, units = "days"))) |>
+  mutate(los_days = as.numeric(
+    difftime(dischtime, admittime, units = "days"))
+    ) |>
   print(width = Inf) |>
   ggplot(aes(x = los_days)) +
   geom_histogram(binwidth = 1) +
@@ -337,7 +356,8 @@ Import `patients.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/hosp/patients/>
 
 **Solution:**
 ```{r}
-patients_tble <- fread("~/mimic/hosp/patients.csv.gz") |>
+patients_tble <- 
+  fread("~/mimic/hosp/patients.csv.gz") |>
   as_tibble() |>
   print(n=10, wide=Inf)
 ```
@@ -373,7 +393,7 @@ patients_tble |>
   scale_x_continuous(breaks = seq(0, 100, by = 5))
 
 ```
-There is only data of adults, ages 18 and over. There is a increase from 18-21, then a decrease until 40, where it levels off until 45. From 45-55 there is an small increase, and then a decrease until 89. At 91, there is a large spike, which is because the data counts all ages over 89 as 91. The high frequency of patients in their 20s may be due to the fact that this age group is more likely to be admitted to the hospital for reckless and risky behavior, since they are more likely to engage in activities such as driving under the influence, participating in extreme sports, and engaging in other high-risk behaviors that can lead to accidents and injuries. Additionally, this age group may also be more likely to require hospitalization for mental health issues, such as depression and anxiety, which can also contribute to the higher frequency of patients in their 20s. The decrease in frequency from ages 30-50 may be due to the fact that this age group is generally healthy and less likely to require hospitalization based on stable living. The increase in frequency from ages 45-65 may be due to the fact that this age group is more likely to develop chronic medical conditions that require hospitalization. The decrease in frequency from ages 65-89 may be due to the fact that some patients in this age group may have already passed away or may be receiving care in long-term care facilities rather than being admitted to the hospital. The spike at age 91 is due to the fact that all patients over 89 are counted as 91, which may inflate the number of patients in this age group. Also, patients over 89 may be more likely to require hospitalization due to old-age and poor care-taking from facilities.
+There is only data of adults, ages 18 and over. There is a increase from 18-21, then a decrease until 40, where it levels off until 45. From 45-55 there is an small increase, and then a decrease until 89. At 91, there is a large spike, which is because the data counts all ages over 89 to be 91. The high frequency of patients in their 20s may be due to the fact that this age group is more likely to be admitted to the hospital for reckless and risky behavior, like driving under the influence, participating in extreme sports, and engaging in other high-risk behaviors that can lead to accidents and injuries. Additionally, this age group may also be more likely to require hospitalization for mental health issues, such as depression and anxiety, which can also contribute to the higher frequency of patients in their 20s. The decrease in frequency from ages 30-50 may be due to the fact that this age group is generally healthy and less likely to require hospitalization based on stable living. The increase in frequency from ages 45-65 may be due to the fact that this age group is more likely to develop chronic medical conditions that require hospitalization. The decrease in frequency from ages 65-89 may be due to the fact that some patients in this age group may have already passed away or may be receiving care in long-term care facilities rather than being admitted to the hospital. The spike at age 91 is due to the fact that all patients over 89 are counted as 91, which inflates the number of patients at 91 years old. Also, patients over 89 may be more likely to require hospitalization due to old-age and poor care-taking from facilities.
 
 ## Q5. Lab results
 
@@ -395,11 +415,16 @@ We are interested in the lab measurements of albumin (50862), creatinine (50912)
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
 ```{r}
-labevents_tble <- open_dataset("labevents_pq", format = "parquet") |>
+labevents_tble <- 
+  open_dataset("labevents_pq", format = "parquet") |>
   to_duckdb() |>
-  select(subject_id, itemid, charttime, storetime, valuenum) |>
-  filter(itemid %in% c(50862, 50912, 50971, 50983, 50902, 
-                       50882, 51221, 51301, 50931)) |>
+  select(subject_id, itemid, charttime, 
+         storetime, valuenum) |>
+  filter(
+    itemid %in% c(50862, 50912, 50971, 
+                  50983, 50902, 50882, 
+                  51221, 51301, 50931)
+    ) |>
   left_join(
     select(icustays_tble, subject_id, stay_id, intime),
     by = "subject_id",
@@ -455,7 +480,8 @@ Hint: Use the Parquet format you generated in Homework 2. For reproducibility, m
 **Solution:** Read d_items.csv.gz to see all icu codes.
 Read 
 ```{r}
-d_items <- fread("~/mimic/icu/d_items.csv.gz") |>
+d_items <- 
+  fread("~/mimic/icu/d_items.csv.gz") |>
   as_tibble() |>
   print(width=Inf)
 ```
@@ -498,7 +524,8 @@ chartevents_tble <- open_dataset("chartevents_pq", format = "parquet") |>
   slice_min(storetime, n = 1, with_ties = TRUE) |>
   summarise(
     valuenum = mean(valuenum, na.rm = TRUE),
-    .groups = "drop") |>
+    .groups = "drop"
+    ) |>
   pivot_wider(names_from = itemid, values_from = valuenum) |>
   rename(!!!name_map) |>
   collect() |>
@@ -523,10 +550,22 @@ The final `mimic_icu_cohort` should have one row per ICU stay and columns for ea
 ![](mimic_icu_cohort.png)
 ```{r}
 mimic_icu_cohort <- icustays_tble |>
-  left_join(admissions_tble, by = c("subject_id", "hadm_id")) |>
-  left_join(patients_tble, by = "subject_id") |>
-  left_join(labevents_tble, by = c("subject_id", "stay_id")) |>
-  left_join(chartevents_tble, by = c("subject_id", "stay_id")) |>
+  left_join(
+    admissions_tble, 
+    by = c("subject_id", "hadm_id")
+    ) |>
+  left_join(
+    patients_tble, 
+    by = "subject_id"
+    ) |>
+  left_join(
+    labevents_tble, 
+    by = c("subject_id", "stay_id")
+    ) |>
+  left_join(
+    chartevents_tble, 
+    by = c("subject_id", "stay_id")
+    ) |>
   filter(anchor_age >= 18) |>
   print(width = Inf)
 
@@ -539,9 +578,13 @@ Summarize the following information about the ICU stay cohort `mimic_icu_cohort`
 - Length of ICU stay `los` vs demographic variables (race, insurance, marital_status, gender, age at intime)
 ```{r}
 mimic_icu_cohort |>
-  mutate(age_intime = anchor_age + year(intime) - anchor_year) |>
-  select(los, race, insurance, marital_status, 
-         gender, age_intime) |>
+  mutate(
+    age_intime = anchor_age + year(intime) - anchor_year
+    ) |>
+  select(
+    los, race, insurance, marital_status, 
+    gender, age_intime
+    ) |>
   tbl_summary(
     by = gender,
     statistic = list(
@@ -555,20 +598,23 @@ mimic_icu_cohort |>
   ) |>
     add_p() |>
     bold_labels()
-  
-  
 
 ```
 
 - Length of ICU stay `los` vs the last available lab measurements before ICU stay
 
 ```{r}
-labs = c("albumin", "creatinine", "potassium", "sodium", "chloride", 
-        "bicarbonate", "hematocrit", "white_blood_cell_count", "glucose")
+labs = c("albumin", "creatinine", "potassium", 
+         "sodium", "chloride", "bicarbonate", 
+         "hematocrit", "white_blood_cell_count", "glucose")
 
 mimic_icu_cohort %>%
   select(los, all_of(labs)) %>%
-  pivot_longer(-los, names_to = "lab", values_to = "value") %>%
+  pivot_longer(
+    -los, 
+    names_to = "lab", 
+    values_to = "value"
+    ) %>%
   ggplot(aes(x = los, y = value)) +
   geom_point(alpha = 0.3, size = 0.8) +
   facet_wrap(~ lab, scales = "free") +
@@ -587,7 +633,8 @@ mimic_icu_cohort %>%
 
 mimic_icu_cohort %>%
   select(los, all_of(names(name_map))) %>%
-  pivot_longer(-los, names_to = "lab", values_to = "value") %>%
+  pivot_longer(-los, names_to = "lab",
+               values_to = "value") %>%
   ggplot(aes(x = los, y = value)) +
   geom_point(alpha = 0.3, size = 0.8) +
   facet_wrap(~ lab, scales = "free") +
@@ -615,7 +662,6 @@ ggplot(mimic_icu_cohort, aes(x = first_careunit, y = los)) +
   
 
 ```
-
 ## Q9. AI assistant
 
 Which AI assistants (e.g., GitHub Copilot) do you use when working on this assignment? Which AI model (e.g., GPT-5 mini, GPT-5, Claude Sonnet 4.5) does the AI assistant use? How do you use them? Do you think they help improve your productivity? 
