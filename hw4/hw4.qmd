@@ -43,7 +43,7 @@ Authenticate with BigQuery using the service account token. Please place the ser
 # path to the service account token 
 satoken <- "biostat-203b-2026-winter-92fefbfab477.json"
 # BigQuery authentication using service account
-bq_auth(path = satoken)
+bq_auth(path = "biostat-203b-2026-winter-92fefbfab477.json")
 ```
 Connect to BigQuery database `mimiciv_3_1` in GCP (Google Cloud Platform), using the project billing account `biostat-203b-2025-winter`.
 ```{r}
@@ -77,7 +77,9 @@ icustays_tble <- tbl(con_bq, "icustays") |>
 Connect to the `admissions` table.
 ```{r}
 # # TODO
-# admissions_tble <- 
+admissions_tble <- tbl(con_bq, "admissions") |>
+  arrange(subject_id, hadm_id) |>
+  print(width = Inf)
 ```
 
 ### Q1.4 `patients` data
@@ -85,7 +87,9 @@ Connect to the `admissions` table.
 Connect to the `patients` table.
 ```{r}
 # # TODO
-# patients_tble <-
+patients_tble <- tbl(con_bq, "patients") |>
+  arrange(subject_id) |>
+  print(width = Inf)
 ```
 
 ### Q1.5 `labevents` data
@@ -93,7 +97,18 @@ Connect to the `patients` table.
 Connect to the `labevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the lab items listed in HW3. Only keep the last lab measurements (by `storetime`) before the ICU stay and pivot lab items to become variables/columns. Write all steps in _one_ chain of pipes.
 ```{r}
 # # TODO
-# labevents_tble <- 
+labevents_tble <- tbl(con_bq, "labevents") |>
+  right_join(
+    patients_tble,
+    by = "subject_id"
+  ) |>
+  filter(
+    itemid %in% c(50862, 50912, 50971, 
+                  50983, 50902, 50882, 
+                  51221, 51301, 50931)
+  )|>
+  print(width = Inf)
+  
 ```
 
 ### Q1.6 `chartevents` data
