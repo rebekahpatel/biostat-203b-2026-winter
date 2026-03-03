@@ -30,6 +30,7 @@ library(DBI)
 library(gt)
 library(gtsummary)
 library(tidyverse)
+library(forcats)
 ```
 
 ## Q1. Compile the ICU cohort in HW3 from the Google BigQuery database 
@@ -107,16 +108,69 @@ labevents_tble <- tbl(con_bq, "labevents") |>
                   50983, 50902, 50882, 
                   51221, 51301, 50931)
   )|>
+  left_join(
+    select(icustays_tble, subject_id, stay_id, intime),
+    by = "subject_id"
+  ) |>
+  filter(!is.na(intime), storetime < intime) |>
+  group_by(subject_id, stay_id, itemid) |>
+  slice_max(storetime, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(lab = case_when(
+    itemid == 50862 ~ "albumin",
+    itemid == 50912 ~ "creatinine",
+    itemid == 50971 ~ "potassium",
+    itemid == 50983 ~ "sodium",
+    itemid == 50902 ~ "chloride",
+    itemid == 50882 ~ "bicarbonate",
+    itemid == 51221 ~ "hematocrit",
+    itemid == 51301 ~ "wbc",
+    itemid == 50931 ~ "glucose"
+  )) |>
+  select(subject_id, stay_id, lab, valuenum) |>
+  pivot_wider(names_from = lab, values_from = valuenum) %>%
+  relocate(sort(names(.)[-(1:2)]), .after = 2) %>%
+  arrange(subject_id, stay_id) %>%
   print(width = Inf)
   
 ```
 
 ### Q1.6 `chartevents` data
 
-Connect to `chartevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the chart events listed in HW3. Only keep the first chart events (by `storetime`) during ICU stay and pivot chart events to become variables/columns. Write all steps in _one_ chain of pipes. Similary to HW3, if a vital has multiple measurements at the first `storetime`, average them.
+Connect to `chartevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the chart events listed in HW3. Only keep the first chart events (by `storetime`) during ICU stay and pivot chart events to become variables/columns. Write all steps in _one_ chain of pipes. Similarly to HW3, if a vital has multiple measurements at the first `storetime`, average them.
 ```{r}
 # # TODO
-# chartevents_tble <- 
+chartevents_tble <- tbl(con_bq, "chartevents") |>
+  filter(itemid %in% c(220045, 220179, 220180, 
+                       223761, 220210)) |>
+  select(subject_id, stay_id, itemid,
+         charttime, storetime, valuenum) |>
+  left_join(
+    select(icustays_tble, stay_id, intime, outtime),
+    by = c("stay_id")
+  ) |>
+  filter(storetime >= intime, storetime <= outtime) |>
+  group_by(subject_id, stay_id, itemid) |>
+  slice_min(storetime, n = 1, with_ties = TRUE) |>
+  summarise(
+    valuenum = mean(valuenum, na.rm = TRUE),
+    .groups = "drop"
+    ) |>
+  mutate(vital = case_when(
+    itemid == 220045 ~ "heart_rate",
+    itemid == 220179 ~ "non_invasive_blood_pressure_systolic",
+    itemid == 220180 ~ "non_invasive_blood_pressure_diastolic",
+    itemid == 220210 ~ "respiratory_rate",
+    itemid == 223761 ~ "temperature_fahrenheit")) |>
+  select(-itemid) |>
+  pivot_wider(names_from = vital, values_from = valuenum) |>
+  select(subject_id, stay_id, heart_rate,
+         non_invasive_blood_pressure_diastolic,
+         non_invasive_blood_pressure_systolic,
+         respiratory_rate,
+         temperature_fahrenheit) |>
+  arrange(subject_id, stay_id) |>
+  print(width = Inf)
 ```
 
 ### Q1.7 Put things together
@@ -125,7 +179,30 @@ This step is similar to Q7 of HW3. Using _one_ chain of pipes `|>` to perform fo
 
 ```{r}
 # # TODO
-# mimic_icu_cohort <- 
+mimic_icu_cohort <- 
+  icustays_tble |>
+  left_join(
+    admissions_tble,
+    by = c("subject_id", "hadm_id")
+    ) |>
+  left_join(
+    patients_tble, 
+    by = "subject_id"
+    ) |>
+  mutate(age_intime = anchor_age + year(intime) - anchor_year) |>
+  filter(age_intime >= 18) |>
+  left_join(
+    labevents_tble, 
+    by = c("subject_id", "stay_id")
+    ) |>
+  left_join(
+    chartevents_tble, 
+    by = c("subject_id", "stay_id")
+    ) |> 
+  collect() |>
+  arrange(subject_id, hadm_id, stay_id) |>
+  print(width = Inf)
+
 ```
 
 ### Q1.8 Preprocessing
@@ -133,9 +210,39 @@ This step is similar to Q7 of HW3. Using _one_ chain of pipes `|>` to perform fo
 Perform the following preprocessing steps. (i) Lump infrequent levels into "Other" level for `first_careunit`, `last_careunit`, `admission_type`, `admission_location`, and `discharge_location`. (ii) Collapse the levels of `race` into `ASIAN`, `BLACK`, `HISPANIC`, `WHITE`, and `Other`. (iii) Create a new variable `los_long` that is `TRUE` when `los` is greater than or equal to 2 days. (iv) Summarize the data using `tbl_summary()`, stratified by `los_long`. Hint: `fct_lump_n` and `fct_collapse` from the `forcats` package are useful.
 
 Hint: Below is a numerical summary of my tibble after preprocessing:
-
 <iframe width=95% height="500" src="./mimic_icu_cohort_gtsummary.html"></iframe>
 
+```{r}
+mimic_icu_cohort <- 
+  mimic_icu_cohort |>
+  mutate(
+    first_careunit = fct_lump_n(first_careunit, n = 4),
+    last_careunit = fct_lump_n(last_careunit, n = 4),
+    admission_type = fct_lump_n(admission_type, n = 4),
+    admission_location = fct_lump_n(admission_location, n = 3),
+    discharge_location = fct_lump_n(discharge_location, n = 4),
+    race = fct_collapse(race,
+               ASIAN = str_subset(unique(race), "ASIAN"),
+               BLACK = str_subset(unique(race), "BLACK"),
+               HISPANIC = str_subset(unique(race), "HISPANIC"),
+               WHITE = str_subset(unique(race), "WHITE"),
+               other_level = "Other"),
+    los_long = los >= 2)
+  
+mimic_icu_cohort |> 
+  tbl_summary(by = los_long,
+              include = c(first_careunit, last_careunit, los, admission_type,
+                          admission_location, discharge_location, insurance,
+                          language, marital_status, race, hospital_expire_flag,
+                          gender, dod, hematocrit, creatinine, chloride, sodium, 
+                          glucose, bicarbonate, wbc, potassium, 
+                          heart_rate, temperature_fahrenheit, 
+                          non_invasive_blood_pressure_diastolic,
+                          respiratory_rate, non_invasive_blood_pressure_systolic,
+                          age_intime)
+              )
+
+```
 ### Q1.9 Save the final tibble
 
 Save the final tibble to an R data file `mimic_icu_cohort.rds` in the `mimiciv_shiny` folder.
