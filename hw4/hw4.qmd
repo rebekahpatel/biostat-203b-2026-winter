@@ -189,7 +189,9 @@ mimic_icu_cohort <-
     patients_tble, 
     by = "subject_id"
     ) |>
-  mutate(age_intime = anchor_age + year(intime) - anchor_year) |>
+  mutate(
+    age_intime = anchor_age + year(intime) - anchor_year
+  ) |>
   filter(age_intime >= 18) |>
   left_join(
     labevents_tble, 
@@ -231,16 +233,18 @@ mimic_icu_cohort <-
   
 mimic_icu_cohort |> 
   tbl_summary(by = los_long,
-              include = c(first_careunit, last_careunit, los, admission_type,
-                          admission_location, discharge_location, insurance,
-                          language, marital_status, race, hospital_expire_flag,
-                          gender, dod, hematocrit, creatinine, chloride, sodium, 
+              include = c(first_careunit, last_careunit, los, 
+                          admission_type, admission_location, 
+                          discharge_location, insurance,
+                          language, marital_status, race, 
+                          hospital_expire_flag, gender, dod, 
+                          hematocrit, creatinine, chloride, sodium, 
                           glucose, bicarbonate, wbc, potassium, 
                           heart_rate, temperature_fahrenheit, 
                           non_invasive_blood_pressure_diastolic,
-                          respiratory_rate, non_invasive_blood_pressure_systolic,
-                          age_intime)
-              )
+                          respiratory_rate, 
+                          non_invasive_blood_pressure_systolic,
+                          age_intime))
 
 ```
 ### Q1.9 Save the final tibble
@@ -275,3 +279,21 @@ Develop a Shiny app for exploring the ICU cohort data created in Q1. The app sho
 Which AI assistants (e.g., GitHub Copilot) do you use when working on this assignment? Which AI model (e.g., GPT-5 mini, GPT-5, Claude Sonnet 4.5) does the AI assistant use? How do you use them? Do you think they help improve your productivity? 
 
 Give 5 instances where AI model gave incorrect or misleading answers. You can use screenshots or copy-paste the Q&A.
+
+For the most part I used Copilot and Gemini 3(Fast). I used Gemini for debugging and ways to optimize my code. I used Copilot for code suggestions and to help me write code faster. I think they both helped improve my productivity, especially Gemini. It was able to give me more accurate answers and suggestions than Copilot.
+
+5 instances where AI model gave incorrect or misleading answers:
+
+1) Copilot did not suggest an essential parameter, server = TRUE, for updateSelectizeInput(). I received errors for not accounting for this missing information.
+![](img/missed_server.png)
+
+2) Copilot suggested unnecessary code by writing SQL code for dbGetQuery() instead of using dpylr functions.
+![](img/unnecessary_code.png)
+
+
+3) Copilot suggested columns to select, but they were not wanted.
+![](img/unwanted_col.png)
+4) Copilot suggested a dpylr function, limit, that does not work with big query functions. This resulted in errors and seraching for another function.
+![](img/limit.png)
+5) Copilot suggested grouping by subject_id, when I already previously filtered for only one subject_id.
+![](img/filter.png)

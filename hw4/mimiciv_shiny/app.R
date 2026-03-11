@@ -35,9 +35,10 @@ ui <- navbarPage(
         selectInput(
           inputId = "var",
           label = "Lab/Vital/Demographic Summary:",
-          choices = c("hematocrit", "creatinine", "chloride", "sodium",
-                      "glucose", "bicarbonate", "wbc", "potassium",
-                      "heart_rate", "temperature_fahrenheit",
+          choices = c("hematocrit", "creatinine", "chloride", 
+                      "sodium", "glucose", "bicarbonate", 
+                      "wbc", "potassium", "heart_rate", 
+                      "temperature_fahrenheit",
                       "non_invasive_blood_pressure_diastolic",
                       "respiratory_rate",
                       "non_invasive_blood_pressure_systolic",
@@ -82,12 +83,13 @@ ui <- navbarPage(
 categorical = c("insurance", "language",
          "marital_status", "race", "gender")
 
-continuous = c("hematocrit", "creatinine", "chloride", "sodium",
-         "glucose", "bicarbonate", "wbc", "potassium", "los",
-         "heart_rate", "temperature_fahrenheit",
-         "non_invasive_blood_pressure_diastolic",
-         "respiratory_rate",
-         "non_invasive_blood_pressure_systolic")
+continuous = c("hematocrit", "creatinine", "chloride", 
+               "sodium", "glucose", "bicarbonate", 
+               "wbc", "potassium", "los", "heart_rate", 
+               "temperature_fahrenheit",
+               "non_invasive_blood_pressure_diastolic",
+               "respiratory_rate",
+               "non_invasive_blood_pressure_systolic")
 
 server <- function(input, output, session) {
   
@@ -127,7 +129,10 @@ server <- function(input, output, session) {
       
     })
   
-  updateSelectizeInput(session, "patient", choices = unique(mimic_icu_cohort$subject_id), server = TRUE) 
+  updateSelectizeInput(session, 
+                       "patient", 
+                       choices = unique(mimic_icu_cohort$subject_id), 
+                       server = TRUE) 
   
   output$patient_plot <- renderPlot({
     req(input$patient)
@@ -142,16 +147,22 @@ server <- function(input, output, session) {
       select(subject_id, gender, anchor_age) |>
       collect()
     
-    title <- paste0("Patient ", input$patient, ", ", patient_data$gender, ", ", patient_data$anchor_age, " years old, ", str_to_title(admission_data$race[1]))
+    title <- paste0("Patient ", input$patient, ", ", 
+                    patient_data$gender, ", ", 
+                    patient_data$anchor_age, " years old, ", 
+                    str_to_title(admission_data$race[1]))
     
     diagnoses_icd <- tbl(con_bq, "diagnoses_icd") |> 
       filter(subject_id == !!as.numeric(input$patient)) |> 
       distinct(icd_code, .keep_all = TRUE) |>
       slice_min(order_by = seq_num, n = 3) |> 
-      left_join(tbl(con_bq, "d_icd_diagnoses"), by = c("icd_code", "icd_version")) |> 
+      left_join(tbl(con_bq, "d_icd_diagnoses"), 
+                by = c("icd_code", "icd_version")) |> 
       collect()
     
-    str_top3 <- paste(diagnoses_icd$long_title[1], diagnoses_icd$long_title[2], diagnoses_icd$long_title[3], sep = "\n")
+    str_top3 <- paste(diagnoses_icd$long_title[1], 
+                      diagnoses_icd$long_title[2], 
+                      diagnoses_icd$long_title[3], sep = "\n")
     
     transfer_data <- tbl(con_bq, "transfers") |> 
       filter(subject_id == !!as.numeric(input$patient)) |> 
