@@ -1,0 +1,143 @@
+---
+title: "cohort"
+format: html
+---
+
+```{r}
+library(bigrquery)
+library(dbplyr)
+library(DBI)
+library(gt)
+library(gtsummary)
+library(tidyverse)
+library(forcats)
+```
+
+```{r}
+# path to the service account token 
+satoken <- "biostat-203b-2026-winter-92fefbfab477.json"
+# BigQuery authentication using service account
+bq_auth(path = "~/BIOSTAT203B/203b-hw/hw4/biostat-203b-2026-winter-92fefbfab477.json")
+```
+Connect to BigQuery database `mimiciv_3_1` in GCP (Google Cloud Platform), using the project billing account `biostat-203b-2025-winter`.
+```{r}
+# connect to the BigQuery database `biostat-203b-2025-mimiciv_3_1`
+con_bq <- dbConnect(
+    bigrquery::bigquery(),
+    project = "biostat-203b-2025-winter",
+    dataset = "mimiciv_3_1",
+    billing = "biostat-203b-2025-winter"
+)
+con_bq
+```
+
+Building the cohort: Joining transfers and icustays together
+```{r}
+icu_careunits <- tbl(con_bq, "icustays") %>%
+  distinct(first_careunit) %>%
+  pull(first_careunit)
+```
+
+```{r}
+# all transfers of patients who go from ed to icu per visit
+ed_to_icu <- tbl(con_bq, "transfers") %>%
+  filter(!is.na(hadm_id)) %>%
+  mutate(
+    is_ed = careunit == "Emergency Department",
+    is_icu = careunit %in% icu_careunits,
+  ) %>%
+  group_by(subject_id, hadm_id) %>%
+  window_order(intime) %>%
+  mutate( 
+    is_last_ed = is_ed & !sql("LEAD(is_ed, 1, FALSE) OVER (
+                      PARTITION BY subject_id, hadm_id
+                      ORDER BY intime
+                     )"),
+    next_is_icu = sql("LEAD(is_icu, 1, FALSE) OVER (
+                      PARTITION BY subject_id, hadm_id
+                      ORDER BY intime     
+                     )")
+  ) %>%
+  mutate(
+    any_next_icu = sql("MAX(next_is_icu) OVER (
+                      PARTITION BY subject_id, hadm_id
+                      ORDER BY intime
+                      ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                     )") 
+  ) %>%
+  ungroup() %>%
+  filter(is_last_ed & (next_is_icu | any_next_icu)) %>%
+  left_join(
+    tbl(con_bq, "icustays") %>%
+      group_by(subject_id, hadm_id) %>%
+      filter(intime == min(intime)) %>%
+      ungroup(),
+    by = c("subject_id", "hadm_id")) %>%  # join in BQ
+  filter(!is.na(stay_id)) %>% #not all hadm_id in transfers in icustays
+  collect()
+
+```
+```{r}
+# in ed_to_icu, but not ed_icu_basecase - 0
+anti_join(ed_to_icu, test, by = "subject_id")
+
+#in ed_to_icu_basecase but not ed_to_icu - 
+anti_join(test, ed_to_icu, by = "subject_id")
+
+entire_missing <- transfers_tble %>%
+  right_join(missing, by = c("subject_id", "hadm_id")) %>%
+  arrange(subject_id, hadm_id, intime)
+
+
+# in both
+semi_join(ed_to_icu, test, by = "subject_id")
+```
+
+```{r}
+tbl(con_bq, "icustays") %>%
+  distinct(first_careunit) %>%
+  print(width = Inf)
+```
+
+
+```{r}
+comparison <- ed_to_icu %>%
+  left_join(
+    ed_to_icu_basecase,
+    by = c("subject_id", "hadm_id", "stay_id")
+  ) %>%
+  filter(is.na(intime_ed)) %>%
+  select(subject_id, hadm_id, stay_id) %>%
+  group_by(subject_id) %>%
+  summarise(n = n())
+```
+
+```{r}
+transfers_tble <- tbl(con_bq, "transfers") %>%
+  as_tibble() 
+```
+
+```{r}
+looking <- transfers_tble %>%
+  filter(hadm_id %in% comparison$hadm_id)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
