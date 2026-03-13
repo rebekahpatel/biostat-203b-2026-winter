@@ -33,6 +33,7 @@ con_bq
 
 Building the cohort: Joining transfers and icustays together
 ```{r}
+# find all units listed under icustays
 icu_careunits <- tbl(con_bq, "icustays") %>%
   distinct(first_careunit) %>%
   pull(first_careunit)
@@ -40,11 +41,10 @@ icu_careunits <- tbl(con_bq, "icustays") %>%
 
 ```{r}
 # all transfers of patients who go from ed to icu per visit
-ed_to_icu <- tbl(con_bq, "transfers") %>%
-  filter(!is.na(hadm_id)) %>%
+ed_to_icu <- tbl(con_bq, "transfers") %>% #start with transfers
   mutate(
     is_ed = careunit == "Emergency Department",
-    is_icu = careunit %in% icu_careunits,
+    is_icu = careunit %in% icu_careunits
   ) %>%
   group_by(subject_id, hadm_id) %>%
   window_order(intime) %>%
@@ -66,67 +66,118 @@ ed_to_icu <- tbl(con_bq, "transfers") %>%
                      )") 
   ) %>%
   ungroup() %>%
-  filter(is_last_ed & (next_is_icu | any_next_icu)) %>%
+  filter(is_ed) %>%
+  group_by(subject_id, hadm_id) %>%
+  mutate( #can't use slice_min so we use row_number to get the first ed transfer per visit
+    stay_num = sql("ROW_NUMBER() OVER (
+                      PARTITION BY subject_id, hadm_id
+                      ORDER BY intime
+                     )")
+  ) %>%
+  filter(stay_num == 1) %>%
+  ungroup() %>%
   left_join(
     tbl(con_bq, "icustays") %>%
+      arrange(subject_id, hadm_id, intime) %>%
       group_by(subject_id, hadm_id) %>%
       filter(intime == min(intime)) %>%
-      ungroup(),
-    by = c("subject_id", "hadm_id")) %>%  # join in BQ
-  filter(!is.na(stay_id)) %>% #not all hadm_id in transfers in icustays
+      ungroup() %>%
+      rename(intime_icu = intime, outtime_icu = outtime),
+    by = c("subject_id", "hadm_id")
+  ) %>%  # join in BQ
+  select(-eventtype, -stay_num, -is_icu, 
+         -last_careunit, -los, -transfer_id) %>%
   collect()
 
 ```
 ```{r}
-# in ed_to_icu, but not ed_icu_basecase - 0
-anti_join(ed_to_icu, test, by = "subject_id")
+ed_to_icu <- ed_to_icu %>%
+  mutate(
+    icu_within_3hrs = if_else(
+      !is.na(intime_icu) & !is.na(intime) &
+      intime_icu >= intime &
+      intime_icu <= intime + hours(3),
+      1L, 0L),
+  ed_to_icu_minutes = if_else(
+      !is.na(intime_icu) & !is.na(intime),
+      as.numeric(difftime(intime_icu, intime, units = "mins")),
+      NA_real_
+    )
+  )
+ed_to_icu
 
-#in ed_to_icu_basecase but not ed_to_icu - 
-anti_join(test, ed_to_icu, by = "subject_id")
-
-entire_missing <- transfers_tble %>%
-  right_join(missing, by = c("subject_id", "hadm_id")) %>%
-  arrange(subject_id, hadm_id, intime)
-
-
-# in both
-semi_join(ed_to_icu, test, by = "subject_id")
 ```
 
 ```{r}
-tbl(con_bq, "icustays") %>%
-  distinct(first_careunit) %>%
-  print(width = Inf)
+# # in ed_to_icu, but not ed_icu_basecase - 0
+# anti_join(ed_to_icu, ed_to_icu_basecase, by = "hadm_id")
+# 
+# #in ed_to_icu_basecase but not ed_to_icu -
+# anti_join(ed_to_icu_basecase, ed_to_icu, by = "hadm_id")
+# 
+# # in both
+# semi_join(ed_to_icu, ed_to_icu_basecase, by = "hadm_id")
+# 
+# ed_to_icu %>%
+#   group_by(hadm_id) %>%
+#   summarize(n = n()) %>%
+#   filter(n > 1)
+
+sum(ed_to_icu$icu_within_3hrs == 1)
+sum(!is.na(ed_to_icu$intime_icu))
 ```
 
-
+Finding all trauma patients through ICD codes
 ```{r}
-comparison <- ed_to_icu %>%
-  left_join(
-    ed_to_icu_basecase,
-    by = c("subject_id", "hadm_id", "stay_id")
+all_trauma_patients <- tbl(con_bq, "diagnoses_icd") %>%
+    filter(
+      # ICD-10 Logic: Must be version 10 AND within the S00-T88 range
+      (icd_version == 10 & icd_code >= "S00" & icd_code <= "T88") | 
+        
+        # ICD-9 Logic: Must be version 9 AND (Numeric range OR E-code range)
+        (icd_version == 9 & (
+          (icd_code >= "800" & icd_code <= "959") | 
+            (icd_code >= "E800" & icd_code <= "E999")
+        ))
   ) %>%
-  filter(is.na(intime_ed)) %>%
-  select(subject_id, hadm_id, stay_id) %>%
-  group_by(subject_id) %>%
-  summarise(n = n())
+  left_join(
+    tbl(con_bq, "d_icd_diagnoses"),
+    by = c("icd_code", "icd_version")
+  ) %>%
+  collect()
 ```
 
 ```{r}
-transfers_tble <- tbl(con_bq, "transfers") %>%
-  as_tibble() 
+ed_to_icu_trauma <- ed_to_icu %>%
+  semi_join(
+    all_trauma_patients,
+    by = c("subject_id", "hadm_id")
+  )
+
+# number of stays that transferred within 3 hours
+sum(ed_to_icu_icd_trauma_only$icu_within_3hrs == 1)
+# number of stays that did not go to the icu
+sum(!is.na(ed_to_icu_icd_trauma_only$intime_icu))
 ```
 
+Now that we have all the patients and their stays, add in labs, vitals, and demographic data
 ```{r}
-looking <- transfers_tble %>%
-  filter(hadm_id %in% comparison$hadm_id)
+demographics <- tbl(con_bq, "patients") %>%
+  select(subject_id, gender, anchor_age, anchor_year) %>%
+  inner_join(
+    tbl(con_bq, "admissions") %>%
+      select(subject_id, hadm_id, insurance, 
+             race, marital_status, admission_type),
+    by = "subject_id") %>%
+  collect()
 
+ed_to_icu_trauma_demo <- ed_to_icu_trauma %>%
+  inner_join(
+    demographics,
+    by = c("subject_id", "hadm_id")
+  )
+  
 ```
-
-
-
-
-
 
 
 
