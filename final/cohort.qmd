@@ -11,6 +11,9 @@ library(gt)
 library(gtsummary)
 library(tidyverse)
 library(forcats)
+library(pryr)
+library(data.table)
+library(comorbidity)
 ```
 
 ```{r}
@@ -155,9 +158,9 @@ ed_to_icu_trauma <- ed_to_icu %>%
   )
 
 # number of stays that transferred within 3 hours
-sum(ed_to_icu_icd_trauma_only$icu_within_3hrs == 1)
+sum(ed_to_icu_trauma$icu_within_3hrs == 1)
 # number of stays that did not go to the icu
-sum(!is.na(ed_to_icu_icd_trauma_only$intime_icu))
+sum(!is.na(ed_to_icu_trauma$intime_icu))
 ```
 
 Now that we have all the patients and their stays, add in labs, vitals, and demographic data
@@ -178,12 +181,184 @@ ed_to_icu_trauma_demo <- ed_to_icu_trauma %>%
   )
   
 ```
+```{r}
+lab_items_map <- c(
+  "50811" = "hemoglobin",
+  "51704" = "platelets",
+  "50862" = "albumin",
+  "50912" = "creatinine",
+  "50971" = "potassium",
+  "50983" = "sodium",
+  "50902" = "chloride",
+  "50882" = "bicarbonate",
+  "51221" = "hematocrit",
+  "51301" = "wbc",
+  "50931" = "glucose",
+  "50820" = "pH",
+  "50818" = "pCO2",
+  "50821" = "pO2",
+  "50817" = "Oxygen Saturation",
+  "50802" = "Base Excess",
+  "52442" = "Lactate",
+  "52647" = "Urea Nitrogen"
+)
 
+lab_item_ids <- as.integer(names(lab_items_map))
+```
 
+```{r}
+labevents_tble <- tbl(con_bq, "labevents") %>%
+  select(subject_id, hadm_id, itemid, charttime, valuenum) %>%
+  filter(itemid %in% lab_item_ids,
+         !is.na(charttime), 
+         !is.na(valuenum)
+         ) %>%
+  collect()
 
+```
 
+```{r}
+labs <- labevents_tble %>%
+  filter(!is.na(charttime)) %>%
+  inner_join(
+    ed_to_icu_trauma_demo %>%
+      select(subject_id, hadm_id, intime),
+    by = c("subject_id", "hadm_id")
+  ) %>%
+  filter(!is.na(intime),
+         charttime >= intime,
+         charttime <= intime + hours(3)) %>%
+  group_by(subject_id, hadm_id, itemid) %>%
+  slice_max(order_by = charttime, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(lab = recode(as.character(itemid), !!!lab_items_map)) %>%
+  select(subject_id, hadm_id, lab, valuenum) %>%
+  pivot_wider(names_from = lab, values_from = valuenum)
 
+ed_to_icu_trauma_demo_labs <- ed_to_icu_trauma_demo %>%
+  left_join(
+    labs,
+    by = c("subject_id", "hadm_id")
+  )
+```
 
+Adding the vitals from the ED dataset
+```{r}
+ed_vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
+  left_join(
+    fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz"),
+    by = c("subject_id", "stay_id")
+  ) %>%
+  filter(!is.na(intime),
+         charttime >= intime,
+         charttime <= intime + hours(3)) %>%
+  group_by(subject_id, hadm_id) %>%
+  slice_max(order_by = charttime, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(-stay_id, -gender, -race, -disposition, -intime, -outtime, -rhythm)
+
+```
+
+```{r}
+ed_to_icu_trauma_demo_labs_vitals <- ed_to_icu_trauma_demo_labs %>%
+  left_join(
+    ed_vitals,
+    by = c("subject_id", "hadm_id")
+  )
+```
+
+```{r}
+ed_to_icu_trauma_demo_labs_vitals %>%
+  group_by(icu_within_3hrs, next_is_icu) %>%
+  count()
+
+ed_to_icu_trauma_demo_labs_vitals %>%
+  group_by(icu_within_3hrs) %>%
+  count()
+
+```
+
+Adding Charlson score to account for comorbidities
+```{r}
+icd_visits <- tbl(con_bq, "diagnoses_icd") %>%
+  inner_join(
+    tbl(con_bq, "admissions") %>%
+    group_by(subject_id) %>%
+    arrange(admittime) %>%
+    mutate(
+      stay_seq = row_number()
+    ) %>%
+    select(subject_id, hadm_id, stay_seq, admittime, dischtime),
+    by = c("subject_id", "hadm_id") 
+  ) %>%
+  collect()
+
+```
+
+```{r}
+# get all the icd 9 codes that are needed for charlson score and see if a patient was diagnosed with them
+map9 <- comorbidity(x = filter(icd_visits, icd_version == 9),
+                    id = "hadm_id", code = "icd_code",
+                    map = "charlson_icd9_quan", assign0 = TRUE)
+
+# get all the icd 10 codes that are needed for charlson score and see if a patient was diagnosed with them
+map10 <- comorbidity(x = filter(icd_visits, icd_version == 10),
+                     id = "hadm_id", code = "icd_code",
+                     map = "charlson_icd10_quan", assign0 = TRUE)
+
+# put these maps together and join back into main dataset icd_visits
+all_maps <- bind_rows(map9, map10) %>%
+  group_by(hadm_id) %>%
+  summarise(across(mi:aids, max)) %>%
+  left_join(
+    unique(select(icd_visits, subject_id, hadm_id, stay_seq)),
+    by = "hadm_id"
+  )
+
+# make sure if previous stays have been diagnosed with certain code, future stays still have that recorded for patient history
+final_cci <- all_maps %>%
+  group_by(subject_id) %>%
+  arrange(stay_seq) %>%
+  mutate(across(mi:aids, ~ {
+    # calculate cumulative history including current visit
+    cum_history = cumany(.x == 1)
+    # lag it by 1 so current visit only sees history from stay_seq - 1
+    lag(cum_history, default = FALSE)
+  })) %>%
+  ungroup()
+
+# for score to work, force meta tags to have class comorbidity and attributes to be charlson_icd10_quan
+class(final_cci) <- c("comorbidity", class(final_cci))
+attr(final_cci, "map") <- "charlson_icd10_quan"
+
+# finally, weighted score based on all diagnoses
+final_cci$charlson_score <- score( 
+  final_cci, weights = "quan", assign0 = TRUE
+)
+
+```
+
+```{r}
+# only keep the stays where we are interested in the ed to icu transfers
+ed_to_icu_trauma_demo_labs_vitals_charlson <- final_cci %>%
+  select(subject_id, hadm_id, stay_seq, charlson_score) %>%
+  right_join(
+    ed_to_icu_trauma_demo_labs_vitals,
+    by = c("subject_id", "hadm_id")
+  )
+```
+
+```{r}
+single <- ed_to_icu_trauma %>%
+  filter((next_is_icu | any_next_icu) & is.na(stay_id)) %>%
+  collect()
+
+```
+
+```{r}
+icu_careunits
+  
+```
 
 
 
