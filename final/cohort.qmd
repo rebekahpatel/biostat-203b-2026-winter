@@ -14,6 +14,8 @@ library(forcats)
 library(pryr)
 library(data.table)
 library(comorbidity)
+library(tidymodels)
+library(vip)
 ```
 
 ```{r}
@@ -183,8 +185,8 @@ ed_to_icu_trauma_demo <- ed_to_icu_trauma %>%
 ```
 ```{r}
 lab_items_map <- c(
-  "50811" = "hemoglobin",
-  "51704" = "platelets",
+  "51222" = "hemoglobin",
+  "51265" = "platelets",
   "50862" = "albumin",
   "50912" = "creatinine",
   "50971" = "potassium",
@@ -199,11 +201,13 @@ lab_items_map <- c(
   "50821" = "pO2",
   "50817" = "Oxygen Saturation",
   "50802" = "Base Excess",
-  "52442" = "Lactate",
-  "52647" = "Urea Nitrogen"
+  "50813" = "Lactate",
+  "51006" = "Urea Nitrogen"
 )
 
 lab_item_ids <- as.integer(names(lab_items_map))
+
+rm(ed_to_icu)
 ```
 
 ```{r}
@@ -242,6 +246,16 @@ ed_to_icu_trauma_demo_labs <- ed_to_icu_trauma_demo %>%
   )
 ```
 
+```{r}
+fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz") %>%
+  summarise(
+    total = n(),
+    missing_hadm = mean(is.na(hadm_id))
+  )
+rm(ed_to_icu_trauma)
+```
+
+
 Adding the vitals from the ED dataset
 ```{r}
 ed_vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
@@ -255,7 +269,7 @@ ed_vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
   group_by(subject_id, hadm_id) %>%
   slice_max(order_by = charttime, n = 1, with_ties = FALSE) %>%
   ungroup() %>%
-  select(-stay_id, -gender, -race, -disposition, -intime, -outtime, -rhythm)
+  select(-stay_id, -gender, -race, -disposition, -intime, -outtime, -rhythm, -pain)
 
 ```
 
@@ -275,7 +289,7 @@ ed_to_icu_trauma_demo_labs_vitals %>%
 ed_to_icu_trauma_demo_labs_vitals %>%
   group_by(icu_within_3hrs) %>%
   count()
-
+rm(ed_to_icu_trauma_demo)
 ```
 
 Adding Charlson score to account for comorbidities
@@ -335,7 +349,7 @@ attr(final_cci, "map") <- "charlson_icd10_quan"
 final_cci$charlson_score <- score( 
   final_cci, weights = "quan", assign0 = TRUE
 )
-
+rm(ed_to_icu_trauma_demo_labs)
 ```
 
 ```{r}
@@ -356,9 +370,214 @@ single <- ed_to_icu_trauma %>%
 ```
 
 ```{r}
-icu_careunits
+ed_to_icu_trauma_demo_labs_vitals_charlson %>%
+  tbl_summary(by = icu_within_3hrs) %>%
+  add_n(statistic = "{p_miss}")
+
+rm(ed_to_icu_trauma_demo_labs_vitals)
+```
+Doing some feature engineering and pre-processing to get ready for modeling. Adding flags for whether each lab/vital was measured, and then dropping the original continuous lab/vital columns since we are only interested in whether they were measured or not for this project. Also adding some computed features like shock index and MAP, but only where both components are present, and an age variable that is anchored to the year of the visit instead of the current year.
+```{r}
+ed_to_icu_trauma_demo_labs_vitals_charl_flagged <- ed_to_icu_trauma_demo_labs_vitals_charlson %>%
+  mutate(
+    # vitals flags
+    temperature_measured  = as.integer(!is.na(temperature)),
+    heartrate_measured    = as.integer(!is.na(heartrate)),
+    sbp_measured          = as.integer(!is.na(sbp)),
+    dbp_measured          = as.integer(!is.na(dbp)),
+    resprate_measured     = as.integer(!is.na(resprate)),
+    o2sat_measured        = as.integer(!is.na(o2sat)),
+    
+    # lab flags
+    lactate_measured      = as.integer(!is.na(Lactate)),
+    hemoglobin_measured   = as.integer(!is.na(hemoglobin)),
+    platelets_measured    = as.integer(!is.na(platelets)),
+    wbc_measured          = as.integer(!is.na(wbc)),
+    creatinine_measured   = as.integer(!is.na(creatinine)),
+    sodium_measured       = as.integer(!is.na(sodium)),
+    potassium_measured    = as.integer(!is.na(potassium)),
+    bicarbonate_measured  = as.integer(!is.na(bicarbonate)),
+    glucose_measured      = as.integer(!is.na(glucose)),
+    bun_measured          = as.integer(!is.na("Urea Nitrogen")),
+    ph_measured           = as.integer(!is.na(pH)),
+    pco2_measured         = as.integer(!is.na(pCO2)),
+    po2_measured          = as.integer(!is.na(pO2)),
+    base_excess_measured  = as.integer(!is.na("Base Excess")),
+    o2sat_measured        = as.integer(!is.na("Oxygen Saturation")),
+
+    # computed features only where both components present
+    shock_index           = if_else(!is.na(heartrate) & !is.na(sbp),
+                                    heartrate / sbp, NA_real_),
+    shock_index_measured  = as.integer(!is.na(shock_index)),
+    map                   = if_else(!is.na(sbp) & !is.na(dbp),
+                                    dbp + (1/3) * (sbp - dbp), NA_real_),
+    map_measured          = as.integer(!is.na(map)),
+    age_intime            = anchor_age + year(intime) - anchor_year,
+    interdepartmental     = if_else(next_is_icu == FALSE & any_next_icu == TRUE, 1L, 0L),
+    race = fct_collapse(race,
+           ASIAN = str_subset(unique(race), "ASIAN"),
+           BLACK = str_subset(unique(race), "BLACK"),
+           HISPANIC = str_subset(unique(race), "HISPANIC"),
+           WHITE = str_subset(unique(race), "WHITE"),
+           other_level = "Other"),
+    icu_within_3hrs = factor(icu_within_3hrs, 
+                             levels = c(0, 1), 
+                             labels = c("No", "Yes"))
+  ) %>%
+  select(-careunit, -is_ed, -is_last_ed, -stay_id, -first_careunit,
+         -intime_icu, -outtime_icu, -ed_to_icu_minutes, -anchor_year,
+         -charttime, -"Oxygen Saturation", -next_is_icu, -any_next_icu,
+         -intime, -outtime, -subject_id, -hadm_id)
+  # drop all original continuous lab/vital columns
+rm(ed_to_icu_trauma_demo_labs_vitals_charlson)
+```
+
+
+```{r}
+final_cohort_flagged <- ed_to_icu_trauma_demo_labs_vitals_charl_flagged %>%
+  select(-c(Lactate, hemoglobin, platelets, wbc, creatinine,
+            sodium, potassium, bicarbonate, glucose, "Urea Nitrogen",
+            pH, pCO2, pO2, "Base Excess", albumin, hematocrit,
+            chloride, shock_index, map))
+rm(ed_to_icu_trauma_demo_labs_vitals_charl_flagged)
+```
+
+```{r}
+final_cohort_flagged %>%
+  tbl_summary(by = icu_within_3hrs) %>%
+  add_n(
+    statistic = "{p_miss}"
+  )
   
 ```
+
+```{r}
+set.seed(123)
+
+data_split <- initial_split(
+  final_cohort_flagged,
+  strata = icu_within_3hrs,
+  prop = 0.75
+)
+
+train_data <- training(data_split)
+dim(train_data)
+
+test_data <- testing(data_split)
+dim(test_data)
+
+```
+
+```{r}
+lassologit_recipe <-
+  recipe(icu_within_3hrs ~ .,
+         data = train_data) %>%
+  # mode imputation for insurance
+  step_impute_mode(insurance) %>%
+  # mode imputation for marital status
+  step_impute_mode(marital_status) %>%
+  # mode imputation for arrival_transport
+  step_impute_mode(arrival_transport) %>%
+  # median imputation for all vitals due to >50% & <65% missingness
+  step_impute_median(temperature) %>%
+  step_impute_median(heartrate) %>%
+  step_impute_median(sbp) %>%
+  step_impute_median(dbp) %>%
+  step_impute_median(resprate) %>%
+  step_impute_median(o2sat) %>%
+  # create traditional dummy variables
+  step_dummy(all_nominal_predictors()) %>%
+  # zero-variance filter
+  step_zv(all_predictors()) %>%
+  # center and scale numeric features
+  step_normalize(all_numeric_predictors())
+```
+
+```{r}
+lassologit_mod <-
+  logistic_reg(
+    penalty = tune(),
+    mixture = 1
+  ) %>%
+  set_engine("glmnet", standardize = FALSE)
+```
+
+```{r}
+lassologit_wf <- workflow() %>%
+  add_model(lassologit_mod) %>%
+  add_recipe(lassologit_recipe) %>%
+  print()
+```
+
+```{r}
+param_grid <- grid_regular(
+  penalty(range = c(-6,3), trans = log10_trans()),
+  levels = 100
+) %>%
+print()
+
+folds <- vfold_cv(train_data, v = 5)
+
+lassologit_fit <- lassologit_wf %>%
+  tune_grid(
+    resamples = folds,
+    grid = param_grid,
+    metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity)
+  )
+
+```
+
+```{r}
+lassologit_fit %>%
+  collect_metrics() %>%
+  print(width = Inf) %>%
+  filter(.metric == "roc_auc") %>%
+  ggplot(mapping = aes(x = penalty, y = mean)) +
+  geom_point() +
+  labs(x = "Penalty", y = "CV AUC") +
+  scale_x_log10()
+
+```
+
+```{r}
+lassologit_fit %>%
+  show_best(metric = "roc_auc")
+```
+
+```{r}
+best_lassologit <- lassologit_fit %>%
+  select_best(metric = "roc_auc")
+best_lassologit
+```
+```{r}
+final_lassologit_wf <- lassologit_wf %>%
+  finalize_workflow(best_lassologit)
+
+final_lassologit_fit <- final_lassologit_wf %>%
+  last_fit(data_split)
+
+final_lassologit_fit %>%
+  collect_metrics()
+```
+
+```{r}
+final_lassologit_fit %>%
+  collect_predictions() %>%
+  conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.3)
+```
+```{r}
+fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
+
+coefficients_df <- tidy(fit_parsnip)
+
+coefficients_df
+
+fit_parsnip %>% 
+  vip()
+```
+
+
+
 
 
 
