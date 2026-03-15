@@ -531,7 +531,7 @@ lassologit_fit <- lassologit_wf %>%
 lassologit_fit %>%
   collect_metrics() %>%
   print(width = Inf) %>%
-  filter(.metric == "roc_auc") %>%
+  filter(.metric == "pr_auc") %>%
   ggplot(mapping = aes(x = penalty, y = mean)) +
   geom_point() +
   labs(x = "Penalty", y = "CV AUC") +
@@ -541,12 +541,12 @@ lassologit_fit %>%
 
 ```{r}
 lassologit_fit %>%
-  show_best(metric = "roc_auc")
+  show_best(metric = "pr_auc")
 ```
 
 ```{r}
 best_lassologit <- lassologit_fit %>%
-  select_best(metric = "roc_auc")
+  select_best(metric = "pr_auc")
 best_lassologit
 ```
 ```{r}
@@ -563,7 +563,7 @@ final_lassologit_fit %>%
 ```{r}
 final_lassologit_fit %>%
   collect_predictions() %>%
-  conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.3)
+  conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
 ```
 ```{r}
 fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
