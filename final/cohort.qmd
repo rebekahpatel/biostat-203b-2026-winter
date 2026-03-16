@@ -451,27 +451,286 @@ final_cohort_flagged %>%
   
 ```
 
-```{r}
-set.seed(123)
+<!-- # Version 1: Lasso Logistic Regression, no weights -->
+<!-- ```{r} -->
+<!-- set.seed(123) -->
 
-data_split <- initial_split(
-  final_cohort_flagged,
+<!-- data_split <- initial_split( -->
+<!--   final_cohort_flagged, -->
+<!--   strata = icu_within_3hrs, -->
+<!--   prop = 0.75 -->
+<!-- ) -->
+
+<!-- train_data <- training(data_split) -->
+<!-- dim(train_data) -->
+
+<!-- test_data <- testing(data_split) -->
+<!-- dim(test_data) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lassologit_recipe <- -->
+<!--   recipe(icu_within_3hrs ~ ., -->
+<!--          data = train_data) %>% -->
+<!--   # mode imputation for insurance -->
+<!--   step_impute_mode(insurance) %>% -->
+<!--   # mode imputation for marital status -->
+<!--   step_impute_mode(marital_status) %>% -->
+<!--   # mode imputation for arrival_transport -->
+<!--   step_impute_mode(arrival_transport) %>% -->
+<!--   # median imputation for all vitals due to >50% & <65% missingness -->
+<!--   step_impute_median(temperature) %>% -->
+<!--   step_impute_median(heartrate) %>% -->
+<!--   step_impute_median(sbp) %>% -->
+<!--   step_impute_median(dbp) %>% -->
+<!--   step_impute_median(resprate) %>% -->
+<!--   step_impute_median(o2sat) %>% -->
+<!--   # create traditional dummy variables -->
+<!--   step_dummy(all_nominal_predictors()) %>% -->
+<!--   # zero-variance filter -->
+<!--   step_zv(all_predictors()) %>% -->
+<!--   # center and scale numeric features -->
+<!--   step_normalize(all_numeric_predictors()) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lassologit_mod <- -->
+<!--   logistic_reg( -->
+<!--     penalty = tune(), -->
+<!--     mixture = 1 -->
+<!--   ) %>% -->
+<!--   set_engine("glmnet", standardize = FALSE) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lassologit_wf <- workflow() %>% -->
+<!--   add_model(lassologit_mod) %>% -->
+<!--   add_recipe(lassologit_recipe) %>% -->
+<!--   print() -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- param_grid <- grid_regular( -->
+<!--   penalty(range = c(-6,3), trans = log10_trans()), -->
+<!--   levels = 100 -->
+<!-- ) %>% -->
+<!-- print() -->
+
+<!-- folds <- vfold_cv(train_data, v = 5) -->
+
+<!-- lassologit_fit <- lassologit_wf %>% -->
+<!--   tune_grid( -->
+<!--     resamples = folds, -->
+<!--     grid = param_grid, -->
+<!--     metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity) -->
+<!--   ) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lassologit_fit %>% -->
+<!--   collect_metrics() %>% -->
+<!--   print(width = Inf) %>% -->
+<!--   filter(.metric == "pr_auc") %>% -->
+<!--   ggplot(mapping = aes(x = penalty, y = mean)) + -->
+<!--   geom_point() + -->
+<!--   labs(x = "Penalty", y = "CV AUC") + -->
+<!--   scale_x_log10() -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- lassologit_fit %>% -->
+<!--   show_best(metric = "pr_auc") -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- best_lassologit <- lassologit_fit %>% -->
+<!--   select_best(metric = "pr_auc") -->
+<!-- best_lassologit -->
+<!-- ``` -->
+# ```{r}
+# final_lassologit_wf <- lassologit_wf %>%
+#   finalize_workflow(best_lassologit)
+# 
+# final_lassologit_fit <- final_lassologit_wf %>%
+#   last_fit(data_split)
+# 
+# final_lassologit_fit %>%
+#   collect_metrics()
+# ```
+# 
+# ```{r}
+# final_lassologit_fit %>%
+#   collect_predictions() %>%
+#   conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
+# ```
+# ```{r}
+# fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
+# 
+# coefficients_df <- tidy(fit_parsnip)
+# 
+# coefficients_df
+# 
+# fit_parsnip %>% 
+#   vip()
+# ```
+# 
+# #Version 2: Lasso Logistic Regression with Inverse of Number of Samples (INS) class weights
+# ```{r}
+# n_total <- nrow(final_cohort_flagged)
+# n_no <- sum(final_cohort_flagged$icu_within_3hrs == "No")
+# n_yes <- sum(final_cohort_flagged$icu_within_3hrs == "Yes")
+# 
+# train_data <- training(data_split) %>%
+#   mutate(class_weight = if_else(icu_within_3hrs == "Yes",
+#                         n_total / (n_class * n_yes),
+#                         n_total )
+# dim(train_data)
+# 
+# test_data <- testing(data_split)
+# dim(test_data)
+# 
+# ```
+# 
+# ```{r}
+# lassologit_recipe <-
+#   recipe(icu_within_3hrs ~ .,
+#          data = train_data) %>%
+#   # mode imputation for insurance
+#   step_impute_mode(insurance) %>%
+#   # mode imputation for marital status
+#   step_impute_mode(marital_status) %>%
+#   # mode imputation for arrival_transport
+#   step_impute_mode(arrival_transport) %>%
+#   # median imputation for all vitals due to >50% & <65% missingness
+#   step_impute_median(temperature) %>%
+#   step_impute_median(heartrate) %>%
+#   step_impute_median(sbp) %>%
+#   step_impute_median(dbp) %>%
+#   step_impute_median(resprate) %>%
+#   step_impute_median(o2sat) %>%
+#   # create traditional dummy variables
+#   step_dummy(all_nominal_predictors()) %>%
+#   # zero-variance filter
+#   step_zv(all_predictors()) %>%
+#   # center and scale numeric features
+#   step_normalize(all_numeric_predictors())
+# ```
+# 
+# ```{r}
+# lassologit_mod <-
+#   logistic_reg(
+#     penalty = tune(),
+#     mixture = 1
+#   ) %>%
+#   set_engine("glmnet", standardize = FALSE)
+# ```
+# 
+# ```{r}
+# lassologit_wf <- workflow() %>%
+#   add_model(lassologit_mod) %>%
+#   add_recipe(lassologit_recipe) %>%
+#   print()
+# ```
+# 
+# ```{r}
+# param_grid <- grid_regular(
+#   penalty(range = c(-6,3), trans = log10_trans()),
+#   levels = 100
+# ) %>%
+# print()
+# 
+# folds <- vfold_cv(train_data, v = 5)
+# 
+# lassologit_fit <- lassologit_wf %>%
+#   tune_grid(
+#     resamples = folds,
+#     grid = param_grid,
+#     metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity)
+#   )
+# 
+# ```
+# 
+# ```{r}
+# lassologit_fit %>%
+#   collect_metrics() %>%
+#   print(width = Inf) %>%
+#   filter(.metric == "pr_auc") %>%
+#   ggplot(mapping = aes(x = penalty, y = mean)) +
+#   geom_point() +
+#   labs(x = "Penalty", y = "CV AUC") +
+#   scale_x_log10()
+# 
+# ```
+# 
+# ```{r}
+# lassologit_fit %>%
+#   show_best(metric = "pr_auc")
+# ```
+# 
+# ```{r}
+# best_lassologit <- lassologit_fit %>%
+#   select_best(metric = "pr_auc")
+# best_lassologit
+# ```
+# ```{r}
+# final_lassologit_wf <- lassologit_wf %>%
+#   finalize_workflow(best_lassologit)
+# 
+# final_lassologit_fit <- final_lassologit_wf %>%
+#   last_fit(data_split)
+# 
+# final_lassologit_fit %>%
+#   collect_metrics()
+# ```
+# 
+# ```{r}
+# final_lassologit_fit %>%
+#   collect_predictions() %>%
+#   conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
+# ```
+# ```{r}
+# fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
+# 
+# coefficients_df <- tidy(fit_parsnip)
+# 
+# coefficients_df
+# 
+# fit_parsnip %>% 
+#   vip()
+# ```
+# 
+# 
+
+```{r}
+n_total <- nrow(final_cohort_flagged)
+n_no <- sum(final_cohort_flagged$icu_within_3hrs == "No")
+n_yes <- sum(final_cohort_flagged$icu_within_3hrs == "Yes")
+
+cohort_w1 <- final_cohort_flagged %>%
+  mutate(class_weight = if_else(icu_within_3hrs == "Yes",
+                        n_total / (2 * n_yes),
+                        n_total / (2 * n_no)),
+         class_weight = importance_weights(class_weight))
+
+data_split_w1 <- initial_split(
+  cohort_w1,
   strata = icu_within_3hrs,
   prop = 0.75
 )
 
-train_data <- training(data_split)
-dim(train_data)
-
-test_data <- testing(data_split)
-dim(test_data)
-
+train_data_w1 <- training(data_split_w1)
+test_data_w1 <- testing(data_split_w1)
+options(yardstick.event_first = FALSE)
+levels(cohort_w1$icu_within_3hrs)
 ```
 
 ```{r}
-lassologit_recipe <-
+lassologit_recipe_w1 <-
   recipe(icu_within_3hrs ~ .,
-         data = train_data) %>%
+         data = train_data_w1) %>%
   # mode imputation for insurance
   step_impute_mode(insurance) %>%
   # mode imputation for marital status
@@ -494,41 +753,27 @@ lassologit_recipe <-
 ```
 
 ```{r}
-lassologit_mod <-
-  logistic_reg(
-    penalty = tune(),
-    mixture = 1
-  ) %>%
-  set_engine("glmnet", standardize = FALSE)
-```
-
-```{r}
-lassologit_wf <- workflow() %>%
+lassologit_wf_w1 <- workflow() %>%
+  add_case_weights(class_weight) %>%
   add_model(lassologit_mod) %>%
-  add_recipe(lassologit_recipe) %>%
+  add_recipe(lassologit_recipe_w1) %>%
   print()
 ```
 
 ```{r}
-param_grid <- grid_regular(
-  penalty(range = c(-6,3), trans = log10_trans()),
-  levels = 100
-) %>%
-print()
+folds <- vfold_cv(train_data_w1, v = 5)
 
-folds <- vfold_cv(train_data, v = 5)
-
-lassologit_fit <- lassologit_wf %>%
+lassologit_fit_w1 <- lassologit_wf_w1 %>%
   tune_grid(
     resamples = folds,
     grid = param_grid,
-    metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity)
+    control = control_grid(save_pred = TRUE),
+    metrics = metric_set(pr_auc, sensitivity, specificity)
   )
-
 ```
 
 ```{r}
-lassologit_fit %>%
+lassologit_fit_w1 %>%
   collect_metrics() %>%
   print(width = Inf) %>%
   filter(.metric == "pr_auc") %>%
@@ -536,53 +781,44 @@ lassologit_fit %>%
   geom_point() +
   labs(x = "Penalty", y = "CV AUC") +
   scale_x_log10()
-
 ```
 
 ```{r}
-lassologit_fit %>%
+lassologit_fit_w1 %>%
   show_best(metric = "pr_auc")
 ```
 
 ```{r}
-best_lassologit <- lassologit_fit %>%
+best_lassologit_w1 <- lassologit_fit_w1 %>%
   select_best(metric = "pr_auc")
-best_lassologit
+best_lassologit_w1
 ```
+
 ```{r}
-final_lassologit_wf <- lassologit_wf %>%
-  finalize_workflow(best_lassologit)
+final_lassologit_wf_w1 <- lassologit_wf_w1 %>%
+  finalize_workflow(best_lassologit_w1)
+final_lassologit_fit_w1 <- final_lassologit_wf_w1 %>%
+  last_fit(split = data_split_w1,
+           metrics = metric_set(pr_auc, sensitivity, specificity))
+```
 
-final_lassologit_fit <- final_lassologit_wf %>%
-  last_fit(data_split)
-
-final_lassologit_fit %>%
+```{r}
+final_lassologit_fit_w1 %>%
   collect_metrics()
 ```
 
 ```{r}
-final_lassologit_fit %>%
+final_lassologit_fit_w1 %>%
   collect_predictions() %>%
-  conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
+  conf_mat(truth = icu_within_3hrs, estimate = .pred_class)
 ```
+
 ```{r}
-fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
-
-coefficients_df <- tidy(fit_parsnip)
-
-coefficients_df
-
-fit_parsnip %>% 
+fit_parsnip_w1 <- extract_fit_parsnip(final_lassologit_fit_w1)
+coefficients_df_w1 <- tidy(fit_parsnip_w1)
+coefficients_df_w1
+fit_parsnip_w1 %>% 
   vip()
 ```
-
-
-
-
-
-
-
-
-
 
 
