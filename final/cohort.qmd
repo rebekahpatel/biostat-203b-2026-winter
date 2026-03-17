@@ -4,6 +4,7 @@ format: html
 ---
 
 ```{r}
+library(arrow)
 library(bigrquery)
 library(dbplyr)
 library(DBI)
@@ -16,6 +17,11 @@ library(data.table)
 library(comorbidity)
 library(tidymodels)
 library(vip)
+library(duckdb)
+library(doParallel)
+```
+```{r}
+registerDoParallel(cores = parallel::detectCores() - 1)
 ```
 
 ```{r}
@@ -95,6 +101,7 @@ ed_to_icu <- tbl(con_bq, "transfers") %>% #start with transfers
   collect()
 
 ```
+
 ```{r}
 ed_to_icu <- ed_to_icu %>%
   mutate(
@@ -163,6 +170,7 @@ ed_to_icu_trauma <- ed_to_icu %>%
 sum(ed_to_icu_trauma$icu_within_3hrs == 1)
 # number of stays that did not go to the icu
 sum(!is.na(ed_to_icu_trauma$intime_icu))
+
 ```
 
 Now that we have all the patients and their stays, add in labs, vitals, and demographic data
@@ -181,7 +189,7 @@ ed_to_icu_trauma_demo <- ed_to_icu_trauma %>%
     demographics,
     by = c("subject_id", "hadm_id")
   )
-  
+
 ```
 ```{r}
 lab_items_map <- c(
@@ -207,31 +215,33 @@ lab_items_map <- c(
 
 lab_item_ids <- as.integer(names(lab_items_map))
 
-rm(ed_to_icu)
 ```
 
 ```{r}
-labevents_tble <- tbl(con_bq, "labevents") %>%
+labevents_tble <-
+  open_dataset("labevents_pq", format = "parquet") %>%
   select(subject_id, hadm_id, itemid, charttime, valuenum) %>%
   filter(itemid %in% lab_item_ids,
          !is.na(charttime), 
          !is.na(valuenum)
-         ) %>%
-  collect()
-
-```
-
-```{r}
-labs <- labevents_tble %>%
-  filter(!is.na(charttime)) %>%
+  ) %>%
+  mutate(
+    subject_id = cast(subject_id, int32()),
+    hadm_id = cast(hadm_id, int32()) ,
+    charttime = cast(charttime, timestamp(unit = "us", timezone = "UTC"))
+  )%>%
   inner_join(
     ed_to_icu_trauma_demo %>%
       select(subject_id, hadm_id, intime),
     by = c("subject_id", "hadm_id")
   ) %>%
   filter(!is.na(intime),
-         charttime >= intime,
-         charttime <= intime + hours(3)) %>%
+       charttime >= intime,
+       charttime <= intime + dhours(3)
+  ) %>%
+  collect()
+
+labs <- labevents_tble %>%
   group_by(subject_id, hadm_id, itemid) %>%
   slice_max(order_by = charttime, n = 1, with_ties = FALSE) %>%
   ungroup() %>%
@@ -244,32 +254,45 @@ ed_to_icu_trauma_demo_labs <- ed_to_icu_trauma_demo %>%
     labs,
     by = c("subject_id", "hadm_id")
   )
-```
 
-```{r}
-fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz") %>%
-  summarise(
-    total = n(),
-    missing_hadm = mean(is.na(hadm_id))
-  )
-rm(ed_to_icu_trauma)
 ```
-
 
 Adding the vitals from the ED dataset
 ```{r}
-ed_vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
-  left_join(
-    fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz"),
+vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
+  as_tibble()
+edstays <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz") %>%
+  as_tibble()
+```
+
+```{r}
+ed_vitals <- vitals %>%
+  select(subject_id, stay_id, charttime, 
+         temperature, heartrate, resprate, 
+         o2sat, sbp, dbp) %>%
+  inner_join(
+    edstays %>% 
+      select(subject_id, stay_id, hadm_id, intime, arrival_transport),
     by = c("subject_id", "stay_id")
   ) %>%
-  filter(!is.na(intime),
-         charttime >= intime,
-         charttime <= intime + hours(3)) %>%
-  group_by(subject_id, hadm_id) %>%
+  filter(
+     !is.na(intime),
+     !is.na(charttime),
+    charttime >= intime,
+    charttime <= intime + hours(3)
+  ) %>%
+  pivot_longer(
+    cols = c(temperature, heartrate, resprate, o2sat, sbp, dbp),
+    names_to = "vital_name",
+    values_to = "valuenum"
+  ) %>%
+  filter(!is.na(valuenum)) %>%
+  group_by(subject_id, hadm_id, vital_name) %>%
   slice_max(order_by = charttime, n = 1, with_ties = FALSE) %>%
   ungroup() %>%
-  select(-stay_id, -gender, -race, -disposition, -intime, -outtime, -rhythm, -pain)
+  pivot_wider(names_from = vital_name, values_from = valuenum) %>%
+  collect() %>%
+  select(-stay_id, -intime)
 
 ```
 
@@ -279,6 +302,8 @@ ed_to_icu_trauma_demo_labs_vitals <- ed_to_icu_trauma_demo_labs %>%
     ed_vitals,
     by = c("subject_id", "hadm_id")
   )
+rm(ed_to_icu_trauma_demo_labs)
+rm(ed_vitals)
 ```
 
 ```{r}
@@ -289,7 +314,7 @@ ed_to_icu_trauma_demo_labs_vitals %>%
 ed_to_icu_trauma_demo_labs_vitals %>%
   group_by(icu_within_3hrs) %>%
   count()
-rm(ed_to_icu_trauma_demo)
+
 ```
 
 Adding Charlson score to account for comorbidities
@@ -349,7 +374,7 @@ attr(final_cci, "map") <- "charlson_icd10_quan"
 final_cci$charlson_score <- score( 
   final_cci, weights = "quan", assign0 = TRUE
 )
-rm(ed_to_icu_trauma_demo_labs)
+
 ```
 
 ```{r}
@@ -360,13 +385,12 @@ ed_to_icu_trauma_demo_labs_vitals_charlson <- final_cci %>%
     ed_to_icu_trauma_demo_labs_vitals,
     by = c("subject_id", "hadm_id")
   )
-```
-
-```{r}
-single <- ed_to_icu_trauma %>%
-  filter((next_is_icu | any_next_icu) & is.na(stay_id)) %>%
-  collect()
-
+rm(ed_to_icu_trauma_demo_labs_vitals)
+rm(icd_visits)
+rm(map9)
+rm(map10)
+rm(all_maps)
+rm(final_cci)
 ```
 
 ```{r}
@@ -374,8 +398,8 @@ ed_to_icu_trauma_demo_labs_vitals_charlson %>%
   tbl_summary(by = icu_within_3hrs) %>%
   add_n(statistic = "{p_miss}")
 
-rm(ed_to_icu_trauma_demo_labs_vitals)
 ```
+
 Doing some feature engineering and pre-processing to get ready for modeling. Adding flags for whether each lab/vital was measured, and then dropping the original continuous lab/vital columns since we are only interested in whether they were measured or not for this project. Also adding some computed features like shock index and MAP, but only where both components are present, and an age variable that is anchored to the year of the visit instead of the current year.
 ```{r}
 ed_to_icu_trauma_demo_labs_vitals_charl_flagged <- ed_to_icu_trauma_demo_labs_vitals_charlson %>%
@@ -421,15 +445,15 @@ ed_to_icu_trauma_demo_labs_vitals_charl_flagged <- ed_to_icu_trauma_demo_labs_vi
            WHITE = str_subset(unique(race), "WHITE"),
            other_level = "Other"),
     icu_within_3hrs = factor(icu_within_3hrs, 
-                             levels = c(0, 1), 
-                             labels = c("No", "Yes"))
+                             levels = c(1, 0), 
+                             labels = c("Yes", "No"))
   ) %>%
   select(-careunit, -is_ed, -is_last_ed, -stay_id, -first_careunit,
-         -intime_icu, -outtime_icu, -ed_to_icu_minutes, -anchor_year,
+         -intime_icu, -intime, -outtime_icu, outtime, -ed_to_icu_minutes, -anchor_year,
          -charttime, -"Oxygen Saturation", -next_is_icu, -any_next_icu,
          -intime, -outtime, -subject_id, -hadm_id)
   # drop all original continuous lab/vital columns
-rm(ed_to_icu_trauma_demo_labs_vitals_charlson)
+
 ```
 
 
@@ -439,7 +463,7 @@ final_cohort_flagged <- ed_to_icu_trauma_demo_labs_vitals_charl_flagged %>%
             sodium, potassium, bicarbonate, glucose, "Urea Nitrogen",
             pH, pCO2, pO2, "Base Excess", albumin, hematocrit,
             chloride, shock_index, map))
-rm(ed_to_icu_trauma_demo_labs_vitals_charl_flagged)
+
 ```
 
 ```{r}
@@ -703,6 +727,9 @@ final_cohort_flagged %>%
 # ```
 # 
 # 
+```{r}
+# saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
+```
 
 ```{r}
 n_total <- nrow(final_cohort_flagged)
@@ -723,7 +750,7 @@ data_split_w1 <- initial_split(
 
 train_data_w1 <- training(data_split_w1)
 test_data_w1 <- testing(data_split_w1)
-options(yardstick.event_first = FALSE)
+
 levels(cohort_w1$icu_within_3hrs)
 ```
 
@@ -753,6 +780,16 @@ lassologit_recipe_w1 <-
 ```
 
 ```{r}
+ lassologit_mod <-
+   logistic_reg(
+     penalty = tune(),
+     mixture = 1
+   ) %>%
+   set_engine("glmnet", standardize = FALSE) %>%
+   set_mode("classification")
+```
+
+```{r}
 lassologit_wf_w1 <- workflow() %>%
   add_case_weights(class_weight) %>%
   add_model(lassologit_mod) %>%
@@ -763,20 +800,24 @@ lassologit_wf_w1 <- workflow() %>%
 ```{r}
 folds <- vfold_cv(train_data_w1, v = 5)
 
+param_grid <- grid_regular(
+  penalty(range = c(-8,1), trans = log10_trans()),
+   levels = 50
+  )
+
 lassologit_fit_w1 <- lassologit_wf_w1 %>%
   tune_grid(
     resamples = folds,
     grid = param_grid,
-    control = control_grid(save_pred = TRUE),
-    metrics = metric_set(pr_auc, sensitivity, specificity)
+    # control = control_grid(save_pred = TRUE),
+    metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity)
   )
 ```
 
 ```{r}
 lassologit_fit_w1 %>%
   collect_metrics() %>%
-  print(width = Inf) %>%
-  filter(.metric == "pr_auc") %>%
+  filter(.metric == "roc_auc") %>%
   ggplot(mapping = aes(x = penalty, y = mean)) +
   geom_point() +
   labs(x = "Penalty", y = "CV AUC") +
@@ -785,21 +826,22 @@ lassologit_fit_w1 %>%
 
 ```{r}
 lassologit_fit_w1 %>%
-  show_best(metric = "pr_auc")
+  show_best(metric = "roc_auc")
 ```
 
 ```{r}
 best_lassologit_w1 <- lassologit_fit_w1 %>%
-  select_best(metric = "pr_auc")
+  select_best(metric = "roc_auc")
 best_lassologit_w1
 ```
 
 ```{r}
 final_lassologit_wf_w1 <- lassologit_wf_w1 %>%
   finalize_workflow(best_lassologit_w1)
+
 final_lassologit_fit_w1 <- final_lassologit_wf_w1 %>%
   last_fit(split = data_split_w1,
-           metrics = metric_set(pr_auc, sensitivity, specificity))
+           metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity))
 ```
 
 ```{r}
@@ -808,9 +850,12 @@ final_lassologit_fit_w1 %>%
 ```
 
 ```{r}
-final_lassologit_fit_w1 %>%
+preds <- final_lassologit_fit_w1 %>%
   collect_predictions() %>%
-  conf_mat(truth = icu_within_3hrs, estimate = .pred_class)
+  mutate(.pred_class = if_else(.pred_Yes >= 0.45, "Yes", "No"),
+         .pred_class = factor(.pred_class, levels = c("Yes", "No")))
+
+conf_mat(preds, truth = icu_within_3hrs, estimate = .pred_class)
 ```
 
 ```{r}
