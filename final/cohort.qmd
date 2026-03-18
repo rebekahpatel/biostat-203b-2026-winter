@@ -18,11 +18,14 @@ library(comorbidity)
 library(tidymodels)
 library(vip)
 library(duckdb)
+library(probably)
 library(doParallel)
+library(parallel)
 ```
 ```{r}
 registerDoParallel(cores = parallel::detectCores() - 1)
 ```
+
 
 ```{r}
 # path to the service account token 
@@ -448,10 +451,11 @@ ed_to_icu_trauma_demo_labs_vitals_charl_flagged <- ed_to_icu_trauma_demo_labs_vi
                              levels = c(1, 0), 
                              labels = c("Yes", "No"))
   ) %>%
-  select(-careunit, -is_ed, -is_last_ed, -stay_id, -first_careunit,
-         -intime_icu, -intime, -outtime_icu, outtime, -ed_to_icu_minutes, -anchor_year,
-         -charttime, -"Oxygen Saturation", -next_is_icu, -any_next_icu,
-         -intime, -outtime, -subject_id, -hadm_id)
+select(-careunit, -is_ed, -is_last_ed, -stay_id, -first_careunit,
+       -intime_icu, -intime, -outtime_icu, outtime, -ed_to_icu_minutes,
+       -anchor_year,
+       -charttime, -"Oxygen Saturation", -next_is_icu, -any_next_icu,
+       -intime, -outtime, -subject_id, -hadm_id)
   # drop all original continuous lab/vital columns
 
 ```
@@ -462,7 +466,7 @@ final_cohort_flagged <- ed_to_icu_trauma_demo_labs_vitals_charl_flagged %>%
   select(-c(Lactate, hemoglobin, platelets, wbc, creatinine,
             sodium, potassium, bicarbonate, glucose, "Urea Nitrogen",
             pH, pCO2, pO2, "Base Excess", albumin, hematocrit,
-            chloride, shock_index, map))
+            chloride, anchor_age))
 
 ```
 
@@ -475,266 +479,19 @@ final_cohort_flagged %>%
   
 ```
 
-<!-- # Version 1: Lasso Logistic Regression, no weights -->
-<!-- ```{r} -->
-<!-- set.seed(123) -->
-
-<!-- data_split <- initial_split( -->
-<!--   final_cohort_flagged, -->
-<!--   strata = icu_within_3hrs, -->
-<!--   prop = 0.75 -->
-<!-- ) -->
-
-<!-- train_data <- training(data_split) -->
-<!-- dim(train_data) -->
-
-<!-- test_data <- testing(data_split) -->
-<!-- dim(test_data) -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- lassologit_recipe <- -->
-<!--   recipe(icu_within_3hrs ~ ., -->
-<!--          data = train_data) %>% -->
-<!--   # mode imputation for insurance -->
-<!--   step_impute_mode(insurance) %>% -->
-<!--   # mode imputation for marital status -->
-<!--   step_impute_mode(marital_status) %>% -->
-<!--   # mode imputation for arrival_transport -->
-<!--   step_impute_mode(arrival_transport) %>% -->
-<!--   # median imputation for all vitals due to >50% & <65% missingness -->
-<!--   step_impute_median(temperature) %>% -->
-<!--   step_impute_median(heartrate) %>% -->
-<!--   step_impute_median(sbp) %>% -->
-<!--   step_impute_median(dbp) %>% -->
-<!--   step_impute_median(resprate) %>% -->
-<!--   step_impute_median(o2sat) %>% -->
-<!--   # create traditional dummy variables -->
-<!--   step_dummy(all_nominal_predictors()) %>% -->
-<!--   # zero-variance filter -->
-<!--   step_zv(all_predictors()) %>% -->
-<!--   # center and scale numeric features -->
-<!--   step_normalize(all_numeric_predictors()) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- lassologit_mod <- -->
-<!--   logistic_reg( -->
-<!--     penalty = tune(), -->
-<!--     mixture = 1 -->
-<!--   ) %>% -->
-<!--   set_engine("glmnet", standardize = FALSE) -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- lassologit_wf <- workflow() %>% -->
-<!--   add_model(lassologit_mod) %>% -->
-<!--   add_recipe(lassologit_recipe) %>% -->
-<!--   print() -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- param_grid <- grid_regular( -->
-<!--   penalty(range = c(-6,3), trans = log10_trans()), -->
-<!--   levels = 100 -->
-<!-- ) %>% -->
-<!-- print() -->
-
-<!-- folds <- vfold_cv(train_data, v = 5) -->
-
-<!-- lassologit_fit <- lassologit_wf %>% -->
-<!--   tune_grid( -->
-<!--     resamples = folds, -->
-<!--     grid = param_grid, -->
-<!--     metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity) -->
-<!--   ) -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- lassologit_fit %>% -->
-<!--   collect_metrics() %>% -->
-<!--   print(width = Inf) %>% -->
-<!--   filter(.metric == "pr_auc") %>% -->
-<!--   ggplot(mapping = aes(x = penalty, y = mean)) + -->
-<!--   geom_point() + -->
-<!--   labs(x = "Penalty", y = "CV AUC") + -->
-<!--   scale_x_log10() -->
-
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- lassologit_fit %>% -->
-<!--   show_best(metric = "pr_auc") -->
-<!-- ``` -->
-
-<!-- ```{r} -->
-<!-- best_lassologit <- lassologit_fit %>% -->
-<!--   select_best(metric = "pr_auc") -->
-<!-- best_lassologit -->
-<!-- ``` -->
-# ```{r}
-# final_lassologit_wf <- lassologit_wf %>%
-#   finalize_workflow(best_lassologit)
-# 
-# final_lassologit_fit <- final_lassologit_wf %>%
-#   last_fit(data_split)
-# 
-# final_lassologit_fit %>%
-#   collect_metrics()
-# ```
-# 
-# ```{r}
-# final_lassologit_fit %>%
-#   collect_predictions() %>%
-#   conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
-# ```
-# ```{r}
-# fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
-# 
-# coefficients_df <- tidy(fit_parsnip)
-# 
-# coefficients_df
-# 
-# fit_parsnip %>% 
-#   vip()
-# ```
-# 
-# #Version 2: Lasso Logistic Regression with Inverse of Number of Samples (INS) class weights
-# ```{r}
-# n_total <- nrow(final_cohort_flagged)
-# n_no <- sum(final_cohort_flagged$icu_within_3hrs == "No")
-# n_yes <- sum(final_cohort_flagged$icu_within_3hrs == "Yes")
-# 
-# train_data <- training(data_split) %>%
-#   mutate(class_weight = if_else(icu_within_3hrs == "Yes",
-#                         n_total / (n_class * n_yes),
-#                         n_total )
-# dim(train_data)
-# 
-# test_data <- testing(data_split)
-# dim(test_data)
-# 
-# ```
-# 
-# ```{r}
-# lassologit_recipe <-
-#   recipe(icu_within_3hrs ~ .,
-#          data = train_data) %>%
-#   # mode imputation for insurance
-#   step_impute_mode(insurance) %>%
-#   # mode imputation for marital status
-#   step_impute_mode(marital_status) %>%
-#   # mode imputation for arrival_transport
-#   step_impute_mode(arrival_transport) %>%
-#   # median imputation for all vitals due to >50% & <65% missingness
-#   step_impute_median(temperature) %>%
-#   step_impute_median(heartrate) %>%
-#   step_impute_median(sbp) %>%
-#   step_impute_median(dbp) %>%
-#   step_impute_median(resprate) %>%
-#   step_impute_median(o2sat) %>%
-#   # create traditional dummy variables
-#   step_dummy(all_nominal_predictors()) %>%
-#   # zero-variance filter
-#   step_zv(all_predictors()) %>%
-#   # center and scale numeric features
-#   step_normalize(all_numeric_predictors())
-# ```
-# 
-# ```{r}
-# lassologit_mod <-
-#   logistic_reg(
-#     penalty = tune(),
-#     mixture = 1
-#   ) %>%
-#   set_engine("glmnet", standardize = FALSE)
-# ```
-# 
-# ```{r}
-# lassologit_wf <- workflow() %>%
-#   add_model(lassologit_mod) %>%
-#   add_recipe(lassologit_recipe) %>%
-#   print()
-# ```
-# 
-# ```{r}
-# param_grid <- grid_regular(
-#   penalty(range = c(-6,3), trans = log10_trans()),
-#   levels = 100
-# ) %>%
-# print()
-# 
-# folds <- vfold_cv(train_data, v = 5)
-# 
-# lassologit_fit <- lassologit_wf %>%
-#   tune_grid(
-#     resamples = folds,
-#     grid = param_grid,
-#     metrics = metric_set(roc_auc, pr_auc, accuracy, sensitivity, specificity)
-#   )
-# 
-# ```
-# 
-# ```{r}
-# lassologit_fit %>%
-#   collect_metrics() %>%
-#   print(width = Inf) %>%
-#   filter(.metric == "pr_auc") %>%
-#   ggplot(mapping = aes(x = penalty, y = mean)) +
-#   geom_point() +
-#   labs(x = "Penalty", y = "CV AUC") +
-#   scale_x_log10()
-# 
-# ```
-# 
-# ```{r}
-# lassologit_fit %>%
-#   show_best(metric = "pr_auc")
-# ```
-# 
-# ```{r}
-# best_lassologit <- lassologit_fit %>%
-#   select_best(metric = "pr_auc")
-# best_lassologit
-# ```
-# ```{r}
-# final_lassologit_wf <- lassologit_wf %>%
-#   finalize_workflow(best_lassologit)
-# 
-# final_lassologit_fit <- final_lassologit_wf %>%
-#   last_fit(data_split)
-# 
-# final_lassologit_fit %>%
-#   collect_metrics()
-# ```
-# 
-# ```{r}
-# final_lassologit_fit %>%
-#   collect_predictions() %>%
-#   conf_mat(truth = icu_within_3hrs, estimate = .pred_class, 0.2)
-# ```
-# ```{r}
-# fit_parsnip <- extract_fit_parsnip(final_lassologit_fit)
-# 
-# coefficients_df <- tidy(fit_parsnip)
-# 
-# coefficients_df
-# 
-# fit_parsnip %>% 
-#   vip()
-# ```
-# 
-# 
 ```{r}
-# saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
+#saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
 ```
 
+### Modeling with Lasso Logistic Regression and Class Weights
+# Adding Inverse Frequency Weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
 ```{r}
+set.seed(123)
+
 n_total <- nrow(final_cohort_flagged)
 n_no <- sum(final_cohort_flagged$icu_within_3hrs == "No")
 n_yes <- sum(final_cohort_flagged$icu_within_3hrs == "Yes")
+
 
 cohort_w1 <- final_cohort_flagged %>%
   mutate(class_weight = if_else(icu_within_3hrs == "Yes",
@@ -754,6 +511,7 @@ test_data_w1 <- testing(data_split_w1)
 levels(cohort_w1$icu_within_3hrs)
 ```
 
+# Building the workflow recipe through preprocessing and model specification
 ```{r}
 lassologit_recipe_w1 <-
   recipe(icu_within_3hrs ~ .,
@@ -771,10 +529,12 @@ lassologit_recipe_w1 <-
   step_impute_median(dbp) %>%
   step_impute_median(resprate) %>%
   step_impute_median(o2sat) %>%
+  step_impute_median(map) %>%
+  step_impute_median(shock_index) %>%
   # create traditional dummy variables
   step_dummy(all_nominal_predictors()) %>%
   # zero-variance filter
-  step_zv(all_predictors()) %>%
+  step_nzv(all_predictors()) %>%
   # center and scale numeric features
   step_normalize(all_numeric_predictors())
 ```
@@ -797,8 +557,17 @@ lassologit_wf_w1 <- workflow() %>%
   print()
 ```
 
+# Using cross validation to tune the penalty parameter for the lasso logistic regression model, using a grid of 50 values for the penalty parameter ranging from 10^-8 to 10^1 on the log scale. Evaluating model performance using AUC-ROC, AUC-PR, sensitivity, and specificity metrics.
 ```{r}
-folds <- vfold_cv(train_data_w1, v = 5)
+n_cores <- detectCores(logical = TRUE) - 1
+cl <- makePSOCKcluster(n_cores)
+registerDoParallel(cl)
+cat("Running on", n_cores, "cores\n")
+
+set.seed(123)
+folds <- vfold_cv(train_data_w1, 
+                  v = 10,
+                  strata = icu_within_3hrs)
 
 param_grid <- grid_regular(
   penalty(range = c(-8,1), trans = log10_trans()),
@@ -809,9 +578,13 @@ lassologit_fit_w1 <- lassologit_wf_w1 %>%
   tune_grid(
     resamples = folds,
     grid = param_grid,
-    # control = control_grid(save_pred = TRUE),
+    control = control_grid(save_pred = TRUE),
     metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity)
   )
+
+stopCluster(cl)
+registerDoSEQ()
+cat("Parallel cluster stopped\n")
 ```
 
 ```{r}
@@ -824,6 +597,7 @@ lassologit_fit_w1 %>%
   scale_x_log10()
 ```
 
+# Finding the best model after fitting the model to get the highest sensitivity, while maintaining at least 90% sensitivity, and then plotting the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 lassologit_fit_w1 %>%
   show_best(metric = "roc_auc")
@@ -835,13 +609,46 @@ best_lassologit_w1 <- lassologit_fit_w1 %>%
 best_lassologit_w1
 ```
 
+# After finding the best model based on the tuning results, we collect the predictions from the cross validation folds for that best model and then use the `threshold_perf()` function to calculate sensitivity and specificity across a range of classification thresholds from 0.05 to 0.7, and then plot these metrics across the thresholds to visually inspect where we can achieve at least 90% sensitivity while maximizing specificity.
+```{r}
+cv_preds <- lassologit_fit_w1 %>%
+  collect_predictions(parameters = best_lassologit_w1)
+
+threshold_data <- cv_preds %>%
+  threshold_perf(truth = icu_within_3hrs, 
+                 estimate = .pred_Yes,
+                 thresholds = seq(0.05, 0.7, by = 0.01),
+                 metrics = metric_set(sensitivity, specificity, j_index))
+
+threshold_data %>%
+  filter(.metric %in% c("sensitivity", "specificity")) %>%
+  ggplot(aes(x = .threshold, y = .estimate, color = .metric)) +
+    geom_line(linewidth = 1) +
+    geom_hline(yintercept = 0.90, linetype = "dashed", color = "red") +
+    labs(x = "Classification Threshold", 
+         y = "Metric Estimate",
+         title = "Sensitivity and Specificity Across Classification Thresholds",
+         caption = "Dashed red line indicates 90% sensitivity") +
+    theme_minimal()
+```
+
+```{r}
+chosen_threshold <- threshold_data %>%
+  filter(.metric == "sensitivity", .estimate >= 0.90) %>%
+  slice_max(order_by = .threshold) %>%
+  pull(.threshold)
+
+cat("Chosen threshold:", chosen_threshold, "\n")
+```
+
+# Once threshold is chosen, we fit the best model on the whole dataset and evaluate its performance on the test set, and then we also look at the coefficients of the fitted model to see which features were most important in predicting whether a patient would be transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 final_lassologit_wf_w1 <- lassologit_wf_w1 %>%
   finalize_workflow(best_lassologit_w1)
 
 final_lassologit_fit_w1 <- final_lassologit_wf_w1 %>%
   last_fit(split = data_split_w1,
-           metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity))
+           metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity, precision, recall, f_meas))
 ```
 
 ```{r}
@@ -849,21 +656,52 @@ final_lassologit_fit_w1 %>%
   collect_metrics()
 ```
 
+# Confusion Matrix
 ```{r}
 preds <- final_lassologit_fit_w1 %>%
   collect_predictions() %>%
-  mutate(.pred_class = if_else(.pred_Yes >= 0.45, "Yes", "No"),
+  mutate(.pred_class = if_else(.pred_Yes >= chosen_threshold, "Yes", "No"),
          .pred_class = factor(.pred_class, levels = c("Yes", "No")))
 
 conf_mat(preds, truth = icu_within_3hrs, estimate = .pred_class)
 ```
 
 ```{r}
-fit_parsnip_w1 <- extract_fit_parsnip(final_lassologit_fit_w1)
+metric_set(sensitivity, specificity, precision, recall, f_meas)(
+  preds, 
+  truth = icu_within_3hrs, 
+  estimate = .pred_class
+  )
+```
+
+# Feature Importance
+```{r}
+# ── 12. Variable Importance ───────────────────────────────────────────────────
+fit_parsnip_w1     <- extract_fit_parsnip(final_lassologit_fit_w1)
 coefficients_df_w1 <- tidy(fit_parsnip_w1)
 coefficients_df_w1
-fit_parsnip_w1 %>% 
-  vip()
+
+# Plot importance from tidy() — this uses the correct selected penalty
+# vip() is NOT used here because it reads from the wrong lambda on the glmnet path
+coefficients_df_w1 %>%
+  filter(
+    term != "(Intercept)",
+    estimate != 0            # only features LASSO kept
+  ) %>%
+  mutate(
+    term = reorder(term, abs(estimate)),
+    direction = if_else(estimate > 0, "Positive", "Negative")
+  ) %>%
+  ggplot(aes(x = abs(estimate), y = term, fill = direction)) +
+  geom_col() +
+  scale_fill_manual(values = c("Positive" = "#2196F3", "Negative" = "#F44336")) +
+  labs(
+    title = "LASSO Feature Importance (Selected Penalty)",
+    x = "Absolute Coefficient",
+    y = NULL,
+    fill = "Direction"
+  ) +
+  theme_minimal()
 ```
 
 
