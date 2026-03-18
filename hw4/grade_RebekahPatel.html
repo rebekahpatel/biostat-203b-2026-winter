@@ -1,0 +1,250 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title>HW4</title>
+  <style type="text/css">
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<div id="header">
+<h1 class="title">HW4</h1>
+</div>
+<p><em>Rebekah Patel</em></p>
+<h3 id="overall-grade-255270">Overall Grade: 255/270</h3>
+<h3 id="late-penalty">Late penalty</h3>
+<ul>
+<li>Is the homework submitted (git tag time) before deadline? Take 10
+pts off per day for late submission.</li>
+</ul>
+<h3 id="quality-of-report-1010">Quality of report: 10/10</h3>
+<h3
+id="completeness-correctness-and-efficiency-of-solution-210220">Completeness,
+correctness and efficiency of solution: 210/220</h3>
+<ul>
+<li><p>Q1 (100/100)</p>
+<ul>
+<li>Q1.5: All 9 lab items correct. <code>right_join</code> with
+<code>patients_tble</code> then <code>left_join</code> with
+<code>icustays_tble</code> for intime.
+<code>slice_max(storetime)</code>, <code>case_when</code> pivot,
+<code>pivot_wider</code>. <code>arrange(subject_id, stay_id)</code>
+present at end (line 133). No early collect.</li>
+<li>Q1.6: All 5 vital items with proper column names matching ground
+truth. <code>left_join</code> by <code>stay_id</code>,
+<code>slice_min(storetime, with_ties = TRUE)</code>,
+<code>summarise(mean(...))</code>, <code>case_when</code> pivot,
+<code>pivot_wider</code>. <code>arrange(subject_id, stay_id)</code>
+present at end (line 172). No early collect.</li>
+<li>Q1.7: <code>collect()</code> correctly placed at line 204.
+<code>arrange(subject_id, hadm_id, stay_id)</code> and
+<code>print(width = Inf)</code> present. Correct age computation
+(<code>age_intime = anchor_age + year(intime) - anchor_year</code>).</li>
+<li>Q1.8: <code>fct_lump_n</code> with matching n values. Creative
+<code>fct_collapse</code> using
+<code>str_subset(unique(race), "ASIAN")</code> to dynamically detect
+subcategories with <code>other_level = "Other"</code>.
+<code>los_long = los &gt;= 2</code> correct.</li>
+</ul></li>
+<li><p>Q2 (90/100)</p>
+<ul>
+<li><strong>Folder structure</strong>: Separate <code>app.R</code> in
+<code>mimiciv_shiny/</code>. No penalty.</li>
+<li><strong>Tab 1 (Variable Exploration)</strong>: Single dropdown
+covering labs, vitals, and demographics. Bar plots for categorical,
+boxplots for continuous. <code>tbl_summary</code> rendered via
+<code>gt_output</code>. Not organized into groups (no bonus).</li>
+<li><strong>Tab 2 (Patient Exploration)</strong>: Contains full
+HW3-style ADT timeline plot with all 3 layers: <code>geom_segment</code>
+for ADT (color = careunit, linewidth = ICU detection),
+<code>geom_point</code> for Lab (shape = “+”), <code>geom_point</code>
+for Procedure (shape = long_title).
+<code>scale_y_discrete(limits = rev)</code>. Diagnoses correctly sorted
+by <code>seq_num</code>
+(<code>slice_min(order_by = seq_num, n = 3)</code>). Patient ID via
+<code>selectizeInput</code> with server-side rendering.</li>
+<li>(-10): No ICU vitals faceted plot.</li>
+<li><strong>Error handling</strong>: <code>req()</code>. Uses
+<code>!!as.numeric()</code> for BigQuery filter injection.</li>
+</ul></li>
+<li><p>Q3 (20/20)</p>
+<ul>
+<li>Lists AI tools (Copilot, Gemini 3 Fast) and discusses use.</li>
+<li>Provides 5 instances of AI errors with screenshots: missing
+<code>server = TRUE</code>, unnecessary SQL code, unwanted columns,
+non-working <code>limit</code> function, unnecessary
+<code>group_by</code>. Full credit.</li>
+</ul></li>
+</ul>
+<h3 id="usage-of-git-1010">Usage of Git: 10/10</h3>
+<h3 id="reproducibility-510">Reproducibility: 5/10</h3>
+<ul>
+<li>(-5): Hardcoded path in <code>bq_auth()</code> (line 17:
+<code>"~/BIOSTAT203B/203b-hw/hw4/biostat-203b-2026-winter-92fefbfab477.json"</code>).</li>
+</ul>
+<h3 id="r-code-style-2020">R code style: 20/20</h3>
+<ul>
+<li><a
+href="https://style.tidyverse.org/syntax.html#long-function-calls">Rule
+2.6</a> The maximum line length is 80 characters.
+<ul>
+<li>No violations found.</li>
+</ul></li>
+<li>Other rules: No violations found.</li>
+</ul>
+</body>
+</html>
