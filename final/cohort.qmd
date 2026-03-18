@@ -480,11 +480,11 @@ final_cohort_flagged %>%
 ```
 
 ```{r}
-#saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
+saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
 ```
 
 ### Modeling with Lasso Logistic Regression and Class Weights
-# Adding Inverse Frequency Weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
+# Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
 ```{r}
 set.seed(123)
 
