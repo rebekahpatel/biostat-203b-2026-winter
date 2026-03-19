@@ -22,6 +22,7 @@ library(probably)
 library(doParallel)
 library(parallel)
 ```
+
 ```{r}
 registerDoParallel(cores = parallel::detectCores() - 1)
 ```
@@ -483,8 +484,8 @@ final_cohort_flagged %>%
 saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
 ```
 
-### Modeling with Lasso Logistic Regression and Class Weights
-# Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
+#Modeling with Lasso Logistic Regression and Class Weights
+#### Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
 ```{r}
 set.seed(123)
 
@@ -511,7 +512,7 @@ test_data_w1 <- testing(data_split_w1)
 levels(cohort_w1$icu_within_3hrs)
 ```
 
-# Building the workflow recipe through preprocessing and model specification
+## Building the workflow recipe through preprocessing and model specification
 ```{r}
 lassologit_recipe_w1 <-
   recipe(icu_within_3hrs ~ .,
@@ -557,7 +558,7 @@ lassologit_wf_w1 <- workflow() %>%
   print()
 ```
 
-# Using cross validation to tune the penalty parameter for the lasso logistic regression model, using a grid of 50 values for the penalty parameter ranging from 10^-8 to 10^1 on the log scale. Evaluating model performance using AUC-ROC, AUC-PR, sensitivity, and specificity metrics.
+## Using cross validation to tune the penalty parameter for the lasso logistic regression model, using a grid of 50 values for the penalty parameter ranging from 10^-8 to 10^1 on the log scale. Evaluating model performance using AUC-ROC, AUC-PR, sensitivity, and specificity metrics.
 ```{r}
 n_cores <- detectCores(logical = TRUE) - 1
 cl <- makePSOCKcluster(n_cores)
@@ -597,7 +598,7 @@ lassologit_fit_w1 %>%
   scale_x_log10()
 ```
 
-# Finding the best model after fitting the model to get the highest sensitivity, while maintaining at least 90% sensitivity, and then plotting the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation.
+## Finding the best model after fitting the model to get the highest sensitivity, while maintaining at least 90% sensitivity, and then plotting the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 lassologit_fit_w1 %>%
   show_best(metric = "roc_auc")
@@ -609,7 +610,7 @@ best_lassologit_w1 <- lassologit_fit_w1 %>%
 best_lassologit_w1
 ```
 
-# After finding the best model based on the tuning results, we collect the predictions from the cross validation folds for that best model and then use the `threshold_perf()` function to calculate sensitivity and specificity across a range of classification thresholds from 0.05 to 0.7, and then plot these metrics across the thresholds to visually inspect where we can achieve at least 90% sensitivity while maximizing specificity.
+## After finding the best model based on the tuning results, we collect the predictions from the cross validation folds for that best model and then use the `threshold_perf()` function to calculate sensitivity and specificity across a range of classification thresholds from 0.05 to 0.7, and then plot these metrics across the thresholds to visually inspect where we can achieve at least 90% sensitivity while maximizing specificity.
 ```{r}
 cv_preds <- lassologit_fit_w1 %>%
   collect_predictions(parameters = best_lassologit_w1)
@@ -641,7 +642,7 @@ chosen_threshold <- threshold_data %>%
 cat("Chosen threshold:", chosen_threshold, "\n")
 ```
 
-# Once threshold is chosen, we fit the best model on the whole dataset and evaluate its performance on the test set, and then we also look at the coefficients of the fitted model to see which features were most important in predicting whether a patient would be transferred to the ICU within 3 hours of ED presentation.
+## Once threshold is chosen, we fit the best model on the whole dataset and evaluate its performance on the test set, and then we also look at the coefficients of the fitted model to see which features were most important in predicting whether a patient would be transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 final_lassologit_wf_w1 <- lassologit_wf_w1 %>%
   finalize_workflow(best_lassologit_w1)
@@ -656,7 +657,7 @@ final_lassologit_fit_w1 %>%
   collect_metrics()
 ```
 
-# Confusion Matrix
+## Confusion Matrix
 ```{r}
 preds <- final_lassologit_fit_w1 %>%
   collect_predictions() %>%
@@ -674,7 +675,7 @@ metric_set(sensitivity, specificity, precision, recall, f_meas)(
   )
 ```
 
-# Feature Importance
+## Feature Importance
 ```{r}
 # ── 12. Variable Importance ───────────────────────────────────────────────────
 fit_parsnip_w1     <- extract_fit_parsnip(final_lassologit_fit_w1)
@@ -704,4 +705,276 @@ coefficients_df_w1 %>%
   theme_minimal()
 ```
 
+#Random Forest Model
 
+## Data Split
+```{r}
+set.seed(123)
+
+cohort_rf <- readRDS("final_cohort_flagged.rds")
+
+data_split_rf <- initial_split(
+  cohort_rf,
+  strata = icu_within_3hrs,
+  prop = 0.75
+)
+
+train_data_rf <- training(data_split_rf)
+test_data_rf <- testing(data_split_rf)
+
+levels(cohort_rf$icu_within_3hrs)
+```
+
+## Preprocessing and Model Specification
+```{r}
+rf_recipe <-
+  recipe(icu_within_3hrs ~ .,
+         data = train_data_rf) %>%
+  # mode imputation for insurance
+  step_impute_mode(insurance) %>%
+  # mode imputation for marital status
+  step_impute_mode(marital_status) %>%
+  # mode imputation for arrival_transport
+  step_impute_mode(arrival_transport) %>%
+  # median imputation for all vitals due to >50% & <65% missingness
+  step_impute_median(temperature) %>%
+  step_impute_median(heartrate) %>%
+  step_impute_median(sbp) %>%
+  step_impute_median(dbp) %>%
+  step_impute_median(resprate) %>%
+  step_impute_median(o2sat) %>%
+  step_impute_median(map) %>%
+  step_impute_median(shock_index) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  # zero-variance filter
+  step_nzv(all_predictors())
+```
+
+```{r}
+class_counts <- table(train_data_rf$icu_within_3hrs)
+class_counts
+weight_no <- 1
+weight_yes <- as.numeric(class_counts[2] / class_counts[1]) * 2
+
+rf_mod <- rand_forest(
+  mode = "classification",
+  trees = 100,
+  mtry = tune(), # num of features tested at each split
+  min_n = tune() # min obs need to split a node
+  ) %>%
+  set_engine("ranger",
+             importance = "impurity",
+             class.weights = c("Yes" = weight_yes, "No" = weight_no)
+)
+```
+
+## Pipeline Creation
+```{r}
+rf_wf <- workflow() %>%
+  add_model(rf_mod) %>%
+  add_recipe(rf_recipe)
+```
+
+## Hyperparameter Tuning with Cross Validation
+```{r}
+n_cores <- detectCores(logical = TRUE) - 1
+cl <- makePSOCKcluster(n_cores)
+registerDoParallel(cl)
+
+folds <- vfold_cv(train_data_rf, 
+                  v = 5,
+                  strata = icu_within_3hrs)
+
+rf_fit <- rf_wf %>%
+tune_grid(
+  resamples = folds,
+  grid = 20,
+  metrics = metric_set(roc_auc, pr_auc),
+  control = control_grid(verbose = TRUE,
+                         save_pred = TRUE,
+                         parallel_over = "everything")
+)
+
+stopCluster(cl)
+registerDoSEQ()
+```
+
+```{r}
+best_params <- select_best(
+  rf_fit, 
+  metric = "roc_auc"
+)
+
+best_params
+
+best_pr_auc_params <- select_best(
+  rf_fit,
+  metric = "pr_auc"
+)
+
+best_pr_auc_params
+```
+
+## Finding Optimal Threshold
+```{r}
+# cv_preds <- rf_fit %>%
+#   collect_predictions(parameters = best_params)
+# 
+# 
+# # Run this BEFORE re-tuning to understand your probability distribution
+# cv_preds <- rf_fit %>%
+#   collect_predictions(parameters = best_params)
+
+# # See the actual range of predicted Yes probabilities
+# summary(cv_preds$.pred_Yes)
+# quantile(cv_preds$.pred_Yes, probs = c(0.5, 0.75, 0.9, 0.95, 0.99, 1.0))
+# 
+# threshold_data <- cv_preds %>%
+#   threshold_perf(truth = icu_within_3hrs,
+#                  estimate = .pred_Yes,
+#                  thresholds = seq(0.05, 0.7, by = 0.01),
+#                  metrics = metric_set(sensitivity, specificity, j_index))
+# 
+# threshold_data %>%
+#   filter(.metric %in% c("sensitivity", "specificity")) %>%
+#   ggplot(aes(x = .threshold, y = .estimate, color = .metric)) +
+#     geom_line(linewidth = 1) +
+#     geom_hline(yintercept = 0.90, linetype = "dashed", color = "red") +
+#     labs(x = "Classification Threshold",
+#          y = "Metric Estimate",
+#          title = "Sensitivity and Specificity Across Classification Thresholds",
+#          caption = "Dashed red line indicates 90% sensitivity") +
+#     theme_minimal()
+
+```
+
+```{r}
+# chosen_threshold <- threshold_data %>%
+#   filter(.metric == "sensitivity", .estimate >= .90) %>%
+#   slice_max(order_by = .threshold) %>%
+#   pull(.threshold)
+# 
+# if (length(chosen_threshold) == 0) {
+#   warning("No threshold achieves 90% sensitivity — using threshold closest to 90%")
+#   chosen_threshold <- threshold_data %>%
+#     filter(.metric == "sensitivity") %>%
+#     slice_min(order_by = abs(.estimate - 0.90)) %>%
+#     pull(.threshold)
+# }
+# 
+# cat("Chosen threshold:", chosen_threshold, "\n")
+```
+
+## Finalize Workflow with Best Hyperparameters
+```{r}
+final_rf_wf <- rf_wf %>%
+  finalize_workflow(best_params)
+
+final_rf_fit <- final_rf_wf %>%
+  last_fit(split = data_split_rf,
+           metrics = metric_set(roc_auc, pr_auc, 
+                                sensitivity, specificity)
+  )
+
+final_rf_fit %>%
+  collect_metrics()
+```
+
+## Predictions on Test Data
+```{r}
+rf_pred_results <- final_rf_fit %>%
+  collect_predictions() %>%
+  mutate(.pred_class = factor(
+    ifelse(.pred_Yes >= 0.07, "Yes", "No"),  # threshold for classification
+    levels = c("Yes", "No")                             # ensure factor levels are correct
+  ))
+
+```
+## Confusion Matrix
+```{r}
+conf_mat(rf_pred_results, 
+         truth = icu_within_3hrs, 
+         estimate = .pred_class)
+```
+
+## Evaluate on Test Data
+```{r}
+rf_pred_results %>%
+  roc_auc(truth = icu_within_3hrs, estimate = .pred_Yes)
+rf_pred_results %>%
+  pr_auc(truth = icu_within_3hrs, estimate = .pred_Yes)
+```
+
+baseline PR AUC
+```{r}
+pos_rate <- mean(test_data_rf$icu_within_3hrs == "Yes")
+baseline_pr_auc <- pos_rate
+cat("Baseline PR AUC:", baseline_pr_auc, "\n")
+```
+
+```{r}
+accuracy(rf_pred_results, 
+         truth = icu_within_3hrs, 
+         estimate = .pred_class)
+sensitivity(rf_pred_results, 
+            truth = icu_within_3hrs, 
+            estimate = .pred_class)
+specificity(rf_pred_results, 
+            truth = icu_within_3hrs, 
+            estimate = .pred_class)
+```
+
+```{r}
+# ROC AUC Curve
+rf_pred_results %>%
+  roc_curve(truth = icu_within_3hrs, estimate = .pred_Yes) %>%
+  autoplot()
+```
+
+```{r}
+# PR AUC Curve
+rf_pred_results %>%
+  pr_curve(truth = icu_within_3hrs, estimate = .pred_Yes) %>%
+  autoplot()
+```
+
+## Feature Importance
+```{r}
+final_rf_engine <-
+  extract_fit_engine(extract_fit_parsnip(final_rf_fit))
+
+importance_df <- tibble(
+  variable = names(final_rf_engine$variable.importance),
+  importance = final_rf_engine$variable.importance
+) %>%
+  arrange(desc(importance))
+
+importance_df %>%
+  slice_head(n = 15) %>%
+  mutate(
+    variable = str_replace_all(variable, "-", " "),
+    variable = str_to_title(variable)
+  ) %>%
+  ggplot(aes(x = importance, y = reorder(variable, importance),
+             fill = importance)) +
+    geom_col(width = 0.7) +
+    geom_text(aes(label = round(importance, 0)),        # add value labels
+            hjust = -0.1, size = 3, color = "gray30") +
+  scale_fill_gradient(low = "#a8c8e8", high = "#1a5276") +  # gradient blue
+  scale_x_continuous(expand = expansion(mult = c(0, 0.15))) +  # add space for labels
+  labs(
+    title    = "Random Forest — Top 15 Variable Importances",
+    subtitle = "Measured by mean decrease in impurity (Gini)",
+    x        = "Importance (Impurity)",
+    y        = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title      = element_text(face = "bold", size = 14),
+    plot.subtitle   = element_text(color = "gray50", size = 11),
+    panel.grid.major.y = element_blank(),   # remove horizontal gridlines
+    panel.grid.minor   = element_blank(),
+    legend.position    = "none",            # remove legend
+    axis.text.y        = element_text(size = 11)
+  )
+```
