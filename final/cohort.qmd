@@ -13,7 +13,7 @@ format:
     code-fold: false
 ---
 # Abstract
-"We don't have any beds!" is a repeated quote from the television show, *The Pitt*, which is one of the most realistic medical dramas ever aired, depicting the challenges of working in an Emergency Department (ED) in a busy metropolitan hospital. In each episode, the constant theme is that there are never enough beds in the ED to accommodate the number of patients who need care. This is a common problem in real life as well, and it can lead to worse outcomes for patients who need critical care but are not able to be transferred to an intensive care unit (ICU) in a timely manner. This project aims to develop a predictive model to identify trauma patients in the Emergency Department (ED) who are at high risk of requiring transfer to a critical care unit within 3 hours of admission. In doing so, more beds will open up faster and more patients will be seen. Using the MIMIC-IV database, we will build a cohort of trauma patients based on International Classification of Diseases (ICD) codes and extract relevant clinical data from the first 3 hours of their ED stay, including demographics, vital signs, laboratory results, and comorbidity information. We will then preprocess the data and train a lasso logistic regression model, random forest model, and an XGBoost model with class weights to address class imbalance, tuning the hyperparameters through 5-fold cross-validation. The model's performance will be evaluated using metrics such as AUC-ROC, AUC-PR, sensitivity, and specificity. We will find that the XGBoost model is the most reliable model that identifies high risk trauma patients with the greatest sensitivity, which is one of the goals of this project. Finally, we will analyze feature importance to investigate the key predictors of early ICU transfer among trauma patients in the ED. From this dataset, we will find that certain features such as walk-ins, race, and age are among the most important predictors of early ICU transfer. This project is just the starting point to eventually providing doctors with a tool to help make faster, more informed decisions about which trauma patients in the ED are at high risk of needing critical care.
+"We don't have any beds!" is a repeated quote from the television show, *The Pitt*, which is one of the most realistic medical dramas ever aired, depicting the challenges of working in an Emergency Department (ED) in a busy metropolitan hospital. In each episode, the constant theme is that there are never enough beds in the ED to accommodate the number of patients who need care. This is a common problem in real life as well, and it can lead to worse outcomes for patients who need critical care but are not able to be transferred to an intensive care unit (ICU) in a timely manner. This project aims to develop a predictive model to identify trauma patients in the Emergency Department (ED) who are at high risk of requiring transfer to a critical care unit within 3 hours of admission. In doing so, more beds will open up faster and more patients will be seen. Using the MIMIC-IV database, we will build a cohort of trauma patients based on International Classification of Diseases (ICD) codes and extract relevant clinical data from the first 3 hours of their ED stay, including demographics, vital signs, laboratory results, and comorbidity information. We will then preprocess the data and train a lasso logistic regression model, random forest model, and an XGBoost model with class weights to address class imbalance, tuning the hyperparameters through 5-fold cross-validation. The model's performance will be evaluated using metrics such as AUC-ROC, AUC-PR, sensitivity, and specificity. We will find that the XGBoost model is the most reliable model that identifies high risk trauma patients with the greatest sensitivity, which is one of the goals of this project. Finally, we will analyze feature importance to investigate the key predictors of early ICU transfer among trauma patients in the ED. From this dataset, we will find that certain features such as admission type and race are among the most important predictors of early ICU transfer. This project is just the starting point to eventually providing doctors with a tool to help make faster, more informed decisions about which trauma patients in the ED are at high risk of needing critical care.
 
 # Introduction
 ## Background
@@ -22,9 +22,95 @@ Emergency Departments (EDs) are often the first point of contact for patients se
 
 # Methods
 ## Data Source or Materials
-The data for this project was sourced from the Medical Information Mart for Intensive Care IV (MIMIC-IV) database that contains de-identified patient data from Beth Israel Deaconess Medical Center in Boston, Massachusetts. The data is collected from Metavision bedside monitors. To access this data, researchers much become credientialed users on PhysioNet and complete training couses in human subjects research, as well as sign a data use agrement, to ensure that the data is treated with care. In this project, we utilized data from the hosp folder, which pertains to all patient data hospital wide such as admissions and transfers, the icu folder, which only holds patient data collected from critical care units (CCU), and the ed folder, which only contains patient data collected from the ED. From the hosp folder, we utilized patient demographic data such as age, admission and transfer data to learn if patients transferred from the ED to a CCU, and patient billing data to retrieve the ICD codes per visit and identify the trauma patients. From the icu folder, we utilized the admitted CCU times to ensure accurate 
+The data for this project was sourced from the Medical Information Mart for Intensive Care IV (MIMIC-IV) database that contains de-identified patient data from Beth Israel Deaconess Medical Center in Boston, Massachusetts. The data is collected from Metavision bedside monitors. To access this data, researchers much become credientialed users on PhysioNet and complete training couses in human subjects research, as well as sign a data use agrement, to ensure that the data is treated with care. In this project, we utilized data from the hosp folder, which pertains to all patient data hospital wide such as admissions and transfers, the icu folder, which only holds patient data collected from critical care units (CCU), and the ed folder, which only contains patient data collected from the ED. From the hosp folder, we utilized patient demographic data such as age, admission and transfer data to learn if patients transferred from the ED to a CCU, and patient billing data to retrieve the ICD codes per visit and identify the trauma patients. We also used the lab results from the hosp folder within the first three hours of admission. From the icu folder, we utilized the admitted CCU times to ensure we only considered an accurate window of 3 hours, and determining whether the patient actually went to a CCU. There was some leakage, where in the transfer dataset a patient is recorded to go to a CCU, but the icustays dataset does not hold any records. Lastly, from the ed folder, we utilized only ED-related data, such as vitals and mode of arrival. In each of these folders, there were many massive datasets in the format of zipped csv files. To handle the big data efficiently, in the icu and hosp folders, we used the BigQuery database to do the necessary data manipulation and filtering, and then we collected the resulting datasets into R for further processing. For the specific labevents dataset, we used the arrow package to read in the parquet files and do the necessary filtering and manipulation in R, which was more efficient than using BigQuery for this particular dataset. For the ed folder, we read in the csv files using data.table's fread function, which is optimized for speed and memory efficiency when working with large datasets.
 
+## Variables/Features
+The outcome variable for this project is a binary variable whether a trauma patient in the ED was transferred to a critical care unit (CCU) within 3 hours of admission. The predictor variables include demographics such as, age at admission, race, marital status, insurance, and gender. We also utilize admission and transfer data such as admission type and arrival transport. We also derived some features based on the data, such as interdepartmental transfer, which indicates whether a patient was transferred to a CCU after being in another department, such as the general ward, which could be a proxy for patients who deteriorate after admission. We also included the Charlson comorbidity index score as a predictor to account for patient comorbidities from previous hospital stays. The specific labs we included were lactate, hemoglobin, platelets, white blood cell count, creatinine, sodium, potassium, bicarbonate, glucose, blood urea nitrogen, pH, pCO2, pO2, base excess, albumin, hematocrit, and chloride. The specific vitals we included were temperature, heart rate, systolic blood pressure, diastolic blood pressure, respiratory rate, and oxygen saturation. We also included shock index and mean arterial pressure as features that are computed from the original vital signs. We decided on these features from the clinical knowledge and advice of two doctors, Dr. Gizem and Dr. Roy, as well as from studies like Smith et. al. (2020), "criteria for admission" (1) where associated factors with ICU admission from the ED, such as age, comorbidities, and certain abnormal lab values and vital signs, are discussed. Other studies, including Özkaya et al., "Impact of emergency department-to-intensive care unit transfer time on in-hospital mortality: A retrospective cohort study" (2) and Cha et al., "Association between emergency department–to–intensive care unit transfer time and mortality in patients with septic shock: a target trial emulation with septic shock in South Korea" (3), provided us with additional context on the effects of long transfer times from the ED to the ICU with mortality, motivating our goal to efficiently reduce time in the ED. 
 
+  Due to the high quantity of missing values of the lab results, we had transform the features into binary flags on whether those labs were taken. The lab features had over 80% of missing values. This is informative because only a patient's presentation can warrant the need to run labs. If a patient is doing well and the medical staff is satisfied, no labs would be taken. The ED vitals had around 50-60% of missing values, because vitals are checked hourly by staff. Due to the lower level of missing values, we imputed the missing values by using the median to keep the continuous nature of the vitals, which could be informative for the model, as well as the biary flags on whether the vitals were taken. Of each lab and vital, we only took the most latest result taken up to the 3 hour mark. There were other missing values in the demographic and admission data, such as insurance, marital status, and arrival transport, which we imputed using the mode since those were categorical variables. Only the lasso logistic regression model normalized the numeric features to put them on the same scale, since the random forest and XGBoost models are not sensitive to feature scaling. All three models created dummy variables for the categorical features and used a zero-variance filter to drop any features that had no variance after preprocessing.
+  
+## Analytical Approach/Modeling
+As mentioned before, the index time is when the patient is admitted to the ED. From then, we only consider the next three hours of data for each trauma patient. At the three hour mark, we gather the latest lab results, vital signs, patient history, and transfer data. We then use this data to predict whether the patient will need to be transferred to a CCU. We considered every trauma patient's stay in the MIMIC-IV database that started from the ED. From these stays, there was ~4% prevalence of patients transferring to a CCU within 3 hours. 
+
+When we trained the three different models, lasso logistic regression, random forest, and XGBoost model, we had to address the class imbalance. We decided to use sample-based class weights, where we assigned a higher weight to the minority class (patients who transferred to a CCU within 3 hours) and a lower weight to the majority class (patients who did not transfer to a CCU within 3 hours). We utilized many R packages to run the models, tune the hyperparameters, and evaluate the performance. Some packages were used were tidyverse, tidymodels, forcats, pryr, data.table, comorbidity, vip, doParallel, parallel, xgboost, and scales. We used the doParallel and parallel packages to register a parallel backend and speed up the tuning process for each model.
+
+## Model Evaluation
+The data split was 75/25 between train and test data and we tuned the hyperparameters of each model through 5-fold cross-validation, and evaluated the performance of each model using AUC-ROC, AUC-PR, sensitivity, and specificity metrics. For lasso logistic regression, we tuned the penalty parameter using a grid of 50 values ranging from 10^-8 to 10^1 on the log scale. For the random forest model, we tuned the number of trees and the minimum node size. For the XGBoost model, we tuned the number of trees, learning rate, maximum tree depth, and minimum child weight. After finding the best model based on the tuning results, we collected the predictions from the cross validation folds for that best model and plotted the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation. Finally, we analyzed feature importance to investigate the key predictors of early ICU transfer among trauma patients in the ED.
+
+# Results
+
+## Cohort / Sample Characteristics
+The table summary of the cohort includes all the numeric features' ranges and medians, as well as the categorical features' counts and percentages, stratified by the outcome variable, icu_within_3hrs. The cohort includes 4,487 trauma patient stays that started in the ED, of which 183 (4.08%) were transferred to a CCU within 3 hours. The cohort is mostly split between male and female, however there are more males. Majority of patients are white, married, in their mid-60s, with Medicare insurance, and arrived through ambulance. The patients who were transferred to a CCU within 3 hours of ED presentation had a lower percentage of walk-ins and a lower percentage of ambulance arrivals compared to those who were not transferred to a CCU within 3 hours. The patients who were transferred to a CCU within 3 hours also had a lower percentage of interdepartmental transfers, which could indicate that they needed immediate critical care after being admitted to the hospital.
+
+```{r}
+readRDS("final_cohort_flagged.rds") %>%
+  select(-stay_seq) %>%
+  tbl_summary(by = icu_within_3hrs) %>%
+  add_n(
+    statistic = "{p_miss}"
+  ) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Cohort Summary Table",
+    subtitle = "Summary of trauma patients stays in the ED, stratified by whether they were transferred to a CCU within 3 hours"
+  )
+```
+
+## Model Performance
+We selected ROC_AUC to be the most stable metric to compare the three models due to the severe class imbalance. Between the Lasso Logistic Regression, Random Forest, and XGBoost, the XGBoost model had the highest ROC_AUC of 0.849, compared to 0.817 for the Random Forest model and 0.806 for the Lasso Logistic Regression model. The XGBoost model also had the highest AUC-PR, sensitivity, and specificity compared to the other two models. The optimal classification threshold for the XGBoost model was 0.15, which yielded a sensitivity of 0.80 and a specificity of 0.75.
+![](metrics.png)
+
+## Additional Analyses
+The top 20 most important features in the Lasso Logistic Regression Model are:
+![](llr_feature_importance.png)
+
+The top 20 most important features in the Random Forest Model are:
+![](rf_feature_importance.png)
+
+The top 20 most important features in the XGBoost Model are:
+![](xgb_feature_importance.png)
+
+Overall, the most important features across all three models were admission type, specifically eu.observation and ew.emer, which are both types of admission from the ED and need additional care and observation, race, and labs, such as pH, lactate, bicarbonate, and potassium. Also, the chosen thresholds per model varied, with Random Forest having the lowest threshold of 0.05, Lasso Logistic Regression having a threshold of 0.34, and XGBoost having the highest threshold of 0.57, which could be due to the different ways each model calculates feature importance and makes predictions.
+
+![](thresholds.png)
+
+# Discussion
+
+## Summary of Findings
+XGBoost outperformed the other two models, Lasso Logistic Regression and Random Forest, with ROC-AUC of 0.849, AUC-PR of 0.35, sensitivity of 0.996, specificity of 0.123, PR-AUC of 0.29, and chosen threshold of 0.57. The model had best overall ability to classify trauma patients who need to be transferred to a CCU in 3 hours compared to the other two models. With such a high sensitivity, the XGBoost is able to satisfy our aim of prioritizing sensitivity over specificity, because clinically it is more important to identify as many patients who need critical care as possible, even if it means having some false positives.
+
+With all 3 models having ROC-AUCs above 0.8, we can conclude that there is a strong signal in the data and that the features we selected are informative for predicting early ICU transfer among trauma patients in the ED, even with the severe class imbalance in the cohort. While there was some variation in the specific order of the most important features across the three models, there were some consistent themes. For example, admission type, specifically eu.observation and ew.emer, which are both types of admission from the ED and need additional care and observation, were among the most important features in all three models. This makes clinical sense, as patients who are admitted under these categories may be more likely to require critical care.
+
+## Comparison with Previous Work
+Previous studies have identified various factors associated with ICU admission from the ED, such as age, comorbidities, and certain abnormal lab values and vital signs (1). Our findings are consistent with these studies, as we also found that features such as age, comorbidities (as measured by the Charlson comorbidity index), and certain lab values (such as pH, lactate, bicarbonate, and potassium) were among the most important predictors of early ICU transfer in our models. Additionally, our finding that admission type is a key predictor of early ICU transfer is also consistent with previous research, as patients who require additional care and observation in the ED may be more likely to deteriorate and require critical care.
+
+There was an interesting finding that race was among the most important predictors of early ICU transfer in all three models. This could be due to a variety of factors, including potential disparities in healthcare access and quality, differences in underlying health conditions, or other social determinants of health that may affect the likelihood of ICU transfer. This finding warrants further investigation to understand the underlying reasons for this association and to address any potential disparities in care.
+
+## Strengths and Limitations
+One of the strengths of this project is that we utilized a large, real-world dataset from the MIMIC-IV database, which contains detailed clinical data on a diverse population of patients. This allowed us to build a robust predictive model with good generalizability. Additionally, we compared multiple modeling approaches and evaluated their performance using a variety of metrics, which provided a comprehensive assessment of the models' predictive capabilities. Utilizing only the first three hours of data from the ED also avoids data leakage and ensures that the model is making predictions based on information that would be available to clinicians at the time of decision-making. Also, addressing the class imbalance with class weights qualified our models to better identify the minority class, which is crucial for our clinical goal of prioritizing sensitivity. 
+
+However, there are also limitations to this project. One limitation is that the MIMIC-IV database is based on data from a single hospital, which may limit the generalization of our findings to other settings. Additionally, there may be unmeasured features that could affect the relationship between the predictor variables and the outcome variable, which could bias our results. Furthermore, while we included a variety of features in our models, there may be other relevant features that we did not include, such as specific clinical interventions or medications administered in the ED, which could potentially improve the model's predictive performance. Lastly, while we prioritized sensitivity in our model evaluation, it came at a cost to specificity. If this model were to be implemented, the number of patients who would be chosen to be transferred to the ICU would be much higher than the number of patients who actually need to be transferred, which could lead to resource strain and potential harm from unnecessary transfers. Therefore, further work is needed to optimize the balance between sensitivity and specificity for clinical implementation. Furthermore, with over a majority of the features having a high percentage of missing values in the lab and vital data, there are pieces of information lost that can improve the model. If a better way to keep these pieces of information while also keeping the missing values to a minimum, the model performance will be much improved.
+
+## Implications
+The findings from this project have important implications for clinical practice. The predictive model we developed can potentially be used as a tool to help clinicians identify trauma patients in the ED who are at high risk of needing transfer to a CCU within 3 hours. This can help prioritize care and allocate resources more effectively, ultimately improving patient outcomes. For example, patients identified as high risk by the model could be monitored more closely, receive more aggressive interventions, or be prioritized for transfer to a CCU. Additionally, understanding the key predictors of early ICU transfer can provide insights into the clinical factors that contribute to deterioration in trauma patients in the ED, which can inform clinical decision-making and guide future research.
+
+# Conclusion
+In conclusion, our project demonstrates that it is possible to predict early ICU transfer among trauma patients in the ED using a variety of clinical features available within the first three hours of admission. The XGBoost model showed the best performance in identifying high-risk patients, with important predictors including admission type, race, and certain lab values. While there are limitations to our study, our findings have important implications for improving patient care and bed management in the ED and highlight the potential of predictive modeling in clinical decision-making. Future work should focus on optimizing the balance between sensitivity and specificity for clinical implementation, as well as exploring additional features and external validation to further improve the model's performance and generalizability.
+
+# References
+1. Smith, G., & Nielsen, M. (1999). ABC of intensive care. Criteria for admission. BMJ (Clinical research ed.), 318(7197), 1544–1547. https://doi.org/10.1136/bmj.318.7197.1544
+
+2. Özkaya, S., & Yurdakul, M. S. (2025). Impact of emergency department-to-intensive care unit transfer time on in-hospital mortality: A retrospective cohort study. Medicine, 104(51), e46724. https://doi.org/10.1097/MD.0000000000046724
+
+3. Cha, J. H., Kang, D., Ko, R. E., Kim, W. Y., Hyun, D. G., Lee, Y. J., Cho, W. H., Park, S., Cho, J., & Suh, G. Y. (2025). Association between emergency department-to-intensive care unit transfer time and mortality in patients with septic shock: a target trial emulation with septic shock in South Korea. Acute and critical care, 40(4), 548–556. https://doi.org/10.4266/acc.003575
+
+# AI Usage Acknowledgement
+I utilized Claude Sonnet 4.6, GitHub Copilot, and Google Gemini 3 to assist coding the project. The models provided suggestions and helped with debugging. All code was reviewed and edited by me to ensure accuracy and appropriateness for the project. The models were used as tools to enhance the coding process, but all final decisions and code implementations were made by me. I also used Copilot's suggestions in writing the report, but I revised and edited all statements to ensure accurate accounts of the project and to ensure that the writing style was consistent throughout the report of the project.
+
+---
+
+# Cohort
+##Set-Up
 ```{r}
 library(arrow)
 library(bigrquery)
@@ -44,13 +130,9 @@ library(probably)
 library(doParallel)
 library(parallel)
 library(xgboost)
-library(scales)       # for log10_trans()
+library(scales)  # for log10_trans()
+library(ggplot2)
 ```
-
-```{r}
-registerDoParallel(cores = parallel::detectCores() - 1)
-```
-
 
 ```{r}
 # path to the service account token 
@@ -70,7 +152,7 @@ con_bq <- dbConnect(
 con_bq
 ```
 
-Building the cohort: Joining transfers and icustays together
+## Building the cohort: Joining transfers and icustays together
 ```{r}
 # find all units listed under icustays
 icu_careunits <- tbl(con_bq, "icustays") %>%
@@ -148,26 +230,7 @@ ed_to_icu
 
 ```
 
-```{r}
-# # in ed_to_icu, but not ed_icu_basecase - 0
-# anti_join(ed_to_icu, ed_to_icu_basecase, by = "hadm_id")
-# 
-# #in ed_to_icu_basecase but not ed_to_icu -
-# anti_join(ed_to_icu_basecase, ed_to_icu, by = "hadm_id")
-# 
-# # in both
-# semi_join(ed_to_icu, ed_to_icu_basecase, by = "hadm_id")
-# 
-# ed_to_icu %>%
-#   group_by(hadm_id) %>%
-#   summarize(n = n()) %>%
-#   filter(n > 1)
-
-sum(ed_to_icu$icu_within_3hrs == 1)
-sum(!is.na(ed_to_icu$intime_icu))
-```
-
-Finding all trauma patients through ICD codes
+## Finding all trauma patients through ICD codes
 ```{r}
 all_trauma_patients <- tbl(con_bq, "diagnoses_icd") %>%
     filter(
@@ -193,15 +256,9 @@ ed_to_icu_trauma <- ed_to_icu %>%
     all_trauma_patients,
     by = c("subject_id", "hadm_id")
   )
-
-# number of stays that transferred within 3 hours
-sum(ed_to_icu_trauma$icu_within_3hrs == 1)
-# number of stays that did not go to the icu
-sum(!is.na(ed_to_icu_trauma$intime_icu))
-
 ```
 
-Now that we have all the patients and their stays, add in labs, vitals, and demographic data
+## Now that we have all the patients and their stays, add in labs, vitals, and demographic data
 ```{r}
 demographics <- tbl(con_bq, "patients") %>%
   select(subject_id, gender, anchor_age, anchor_year) %>%
@@ -285,7 +342,7 @@ ed_to_icu_trauma_demo_labs <- ed_to_icu_trauma_demo %>%
 
 ```
 
-Adding the vitals from the ED dataset
+## Adding the vitals from the ED dataset
 ```{r}
 vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
   as_tibble()
@@ -345,7 +402,7 @@ ed_to_icu_trauma_demo_labs_vitals %>%
 
 ```
 
-Adding Charlson score to account for comorbidities
+## Adding Charlson score to account for comorbidities
 ```{r}
 icd_visits <- tbl(con_bq, "diagnoses_icd") %>%
   inner_join(
@@ -428,6 +485,7 @@ ed_to_icu_trauma_demo_labs_vitals_charlson %>%
 
 ```
 
+## Feature Engineering and Preprocessing
 Doing some feature engineering and pre-processing to get ready for modeling. Adding flags for whether each lab/vital was measured, and then dropping the original continuous lab/vital columns since we are only interested in whether they were measured or not for this project. Also adding some computed features like shock index and MAP, but only where both components are present, and an age variable that is anchored to the year of the visit instead of the current year.
 ```{r}
 ed_to_icu_trauma_demo_labs_vitals_charl_flagged <- ed_to_icu_trauma_demo_labs_vitals_charlson %>%
@@ -495,6 +553,7 @@ final_cohort_flagged <- ed_to_icu_trauma_demo_labs_vitals_charl_flagged %>%
 
 ```
 
+## Cohort Summaries
 ```{r}
 final_cohort_flagged %>%
   tbl_summary(by = icu_within_3hrs) %>%
@@ -508,8 +567,24 @@ final_cohort_flagged %>%
 saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
 ```
 
-#Modeling with Lasso Logistic Regression and Class Weights
-#### Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
+```{r}
+readRDS("final_cohort_flagged.rds") %>%
+  tbl_summary(by = icu_within_3hrs) %>%
+  add_n(
+    statistic = "{p_miss}"
+  ) %>%
+  as_gt() %>%
+  tab_header(
+    title = "Cohort Summary Table",
+    subtitle = "Summary of trauma patients stays in the ED, stratified by whether they were transferred to a CCU within 3 hours"
+  ) %>%
+  gtsave("cohort_summary.png")
+```
+---
+
+#Lasso Logsitic Model
+## Data Split 
+Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
 ```{r}
 set.seed(123)
 final_cohort_flagged <- readRDS("final_cohort_flagged.rds") %>%
@@ -538,7 +613,7 @@ test_data_w1 <- testing(data_split_w1)
 levels(cohort_w1$icu_within_3hrs)
 ```
 
-## Building the workflow recipe through preprocessing and model specification
+## Workflow Recipe, Preprocessing, & Model Specification
 ```{r}
 lassologit_recipe_w1 <-
   recipe(icu_within_3hrs ~ .,
@@ -584,7 +659,8 @@ lassologit_wf_w1 <- workflow() %>%
   print()
 ```
 
-## Using cross validation to tune the penalty parameter for the lasso logistic regression model, using a grid of 50 values for the penalty parameter ranging from 10^-8 to 10^1 on the log scale. Evaluating model performance using AUC-ROC, AUC-PR, sensitivity, and specificity metrics.
+## Tuning Penalty
+Using cross validation to tune the penalty parameter for the lasso logistic regression model, using a grid of 50 values for the penalty parameter ranging from 10^-8 to 10^1 on the log scale. Evaluating model performance using AUC-ROC, AUC-PR, sensitivity, and specificity metrics.
 ```{r}
 n_cores <- detectCores(logical = TRUE) - 1
 cl <- makePSOCKcluster(n_cores)
@@ -606,7 +682,7 @@ lassologit_fit_w1 <- lassologit_wf_w1 %>%
     resamples = folds,
     grid = param_grid,
     control = control_grid(save_pred = TRUE,
-                           parallel_over = everything()),
+                           parallel_over = "everything"),
     metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity)
   )
 
@@ -625,7 +701,7 @@ lassologit_fit_w1 %>%
   scale_x_log10()
 ```
 
-## Finding the best model after fitting the model to get the highest sensitivity, while maintaining at least 90% sensitivity, and then plotting the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation.
+Finding the best model after fitting the model to get the highest sensitivity, while maintaining at least 90% sensitivity, and then plotting the sensitivity and specificity across different classification thresholds to choose the optimal threshold for classifying a patient as being transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 lassologit_fit_w1 %>%
   show_best(metric = "roc_auc")
@@ -637,7 +713,8 @@ best_lassologit_w1 <- lassologit_fit_w1 %>%
 best_lassologit_w1
 ```
 
-## After finding the best model based on the tuning results, we collect the predictions from the cross validation folds for that best model and then use the `threshold_perf()` function to calculate sensitivity and specificity across a range of classification thresholds from 0.05 to 0.7, and then plot these metrics across the thresholds to visually inspect where we can achieve at least 90% sensitivity while maximizing specificity.
+## Tuning Threshold
+After finding the best model based on the tuning results, we collect the predictions from the cross validation folds for that best model and then use the `threshold_perf()` function to calculate sensitivity and specificity across a range of classification thresholds from 0.05 to 0.7, and then plot these metrics across the thresholds to visually inspect where we can achieve at least 90% sensitivity while maximizing specificity.
 ```{r}
 cv_preds <- lassologit_fit_w1 %>%
   collect_predictions(parameters = best_lassologit_w1)
@@ -669,7 +746,8 @@ lassologit_chosen_threshold <- threshold_data %>%
 cat("Chosen threshold:", lassologit_chosen_threshold, "\n")
 ```
 
-## Once threshold is chosen, we fit the best model on the whole dataset and evaluate its performance on the test set, and then we also look at the coefficients of the fitted model to see which features were most important in predicting whether a patient would be transferred to the ICU within 3 hours of ED presentation.
+## Fitting Best Model and Evaluation Performance
+Once threshold is chosen, we fit the best model on the whole dataset and evaluate its performance on the test set, and then we also look at the coefficients of the fitted model to see which features were most important in predicting whether a patient would be transferred to the ICU within 3 hours of ED presentation.
 ```{r}
 final_lassologit_wf_w1 <- lassologit_wf_w1 %>%
   finalize_workflow(best_lassologit_w1)
@@ -733,9 +811,18 @@ coefficients_df_w1 %>%
 ```
 ## Save Lasso Logistic Regression Model
 ```{r}
-saveRDS(lassologit_preds, "lassologit.rds")
-```
+lassologit_wf_final <- final_lassologit_fit_w1 %>%
+  extract_workflow()
 
+saveRDS(
+  list(
+    model = lassologit_wf_final,
+    threshold = lassologit_chosen_threshold
+    ),
+  "lassologit.rds"
+)
+```
+---
 #Random Forest Model
 
 ## Data Split
@@ -914,7 +1001,7 @@ final_rf_fit %>%
 rf_pred_results <- final_rf_fit %>%
   collect_predictions() %>%
   mutate(.pred_class = factor(
-    ifelse(.pred_Yes >= chosen_threshold, "Yes", "No"),  # threshold for classification
+    ifelse(.pred_Yes >= rf_chosen_threshold, "Yes", "No"),  # threshold for classification
     levels = c("Yes", "No")                             # ensure factor levels are correct
   ))
 
@@ -1010,13 +1097,22 @@ importance_df %>%
 
 ## Save Random Forest Model
 ```{r}
-saveRDS(rf_pred_results, "rf.rds")
+rf_model <- final_rf_fit %>%
+  extract_workflow()
+saveRDS(
+  list(
+    model = rf_model,
+    threshold = rf_chosen_threshold
+  ),
+  "random_forest.rds"
+)
 ```
-
+---
 # XGBoost Model
-
+## Data Split
 ```{r}
-cohort_xg <- cohort_rf %>% select(-stay_seq)
+cohort_xg <- readRDS("final_cohort_flagged.rds") %>% 
+  select(-stay_seq)
 glimpse(cohort_xg)
 ```
 
@@ -1042,7 +1138,7 @@ cohort_train <- training(data_split)
 cohort_test  <- testing(data_split)
 
 ```
-
+## Workflow, Preprocessing, Model Specification
 ```{r}
 gb_recipe <- recipe(icu_within_3hrs ~ ., data = cohort_train) %>%
   step_impute_mean(
@@ -1086,6 +1182,7 @@ gb_wf <- workflow() %>%
 gb_wf
 ```
 
+## Tuning Hyperparameters
 ```{r}
 xgb_param_grid <- grid_regular(
   tree_depth(range = c(1L, 3L)),
@@ -1190,7 +1287,7 @@ xgb_chosen_threshold <- threshold_data %>%
 cat("Chosen threshold:", xgb_chosen_threshold, "\n")
 ```
 
-
+## Fitting Best XGBoost Model and Evaluation on Test Set
 ```{r}
 final_wf <- gb_wf %>%
   finalize_workflow(best_gb)
@@ -1205,15 +1302,13 @@ final_fit <- final_wf %>%
 final_fit
 ```
 
----
-
 
 ```{r test-metrics}
 final_fit %>% collect_metrics()
 
 xgb_preds <- final_fit %>%
   collect_predictions() %>%
-  mutate(.pred_class = factor(ifelse(.pred_Yes >= chosen_threshold, "Yes", "No"),
+  mutate(.pred_class = factor(ifelse(.pred_Yes >= xgb_chosen_threshold, "Yes", "No"),
                                levels = c("Yes", "No")))
 
 # My results:
@@ -1222,9 +1317,22 @@ xgb_preds <- final_fit %>%
 #brier_class	binary	0.03513427	pre0_mod0_post0
 ```
 
----
+```{r}
+xgb_fitted_final <- final_fit %>%
+  extract_workflow()
 
-## 13. ROC Curve
+saveRDS(
+  list(
+    model = xgb_fitted_final,
+    threshold = xgb_chosen_threshold
+    ),
+  "xgb.rds"
+)
+
+```
+
+
+##ROC Curve
 
 ```{r roc-curve}
 final_fit %>%
@@ -1234,9 +1342,8 @@ final_fit %>%
   labs(title = "ROC Curve – Test Set")
 ```
 
----
 
-## 14. Variable Importance
+## Variable Importance
 
 ```{r vip}
 final_fit %>%
@@ -1245,9 +1352,8 @@ final_fit %>%
   labs(title = "Importance by Var")
 ```
 
----
 
-## 15. Confusion Matrix
+## Confusion Matrix
 
 ```{r confusion-matrix}
 final_fit %>%
@@ -1258,13 +1364,15 @@ final_fit %>%
   )) %>%
   conf_mat(truth = icu_within_3hrs, estimate = .pred_class) 
 ```
+---
+
 # Model Comparison
 ## Collect predictions from each model (assuming each has collect_predictions output)
 ```{r}
 lassologit__preds <- final_lassologit_fit_w1 %>%
   collect_predictions() %>%
   mutate(
-    model = "Lasso",
+    model = "Lasso Logistic",
     .pred_class = factor(ifelse(.pred_Yes >= lassologit_chosen_threshold, "Yes", "No"),
                          levels = c("Yes", "No"))
   )
@@ -1304,11 +1412,69 @@ model_comparison <- bind_rows(
   get_metrics(xgb_preds,    "XGBoost"),
   get_metrics(rf_preds,     "Random Forest")
 ) %>%
-  mutate(across(where(is.numeric), ~ round(.x, 3)))
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  as_gt() %>%
+  gt_save("model_comparison.png")
 
 model_comparison
 ```
 
+### Save Feature Importance Plots for each Model
+```{r}
+llr <- readRDS("lassologit.rds")
+library(broom)
 
+llr_vip <- llr$model %>%
+  extract_fit_parsnip() %>%
+  tidy() %>%                              # extracts coefficients as a tibble
+  filter(term != "(Intercept)") %>%       # drop intercept
+  mutate(Importance = abs(estimate)) %>%  # absolute coefficient value
+  arrange(desc(Importance)) %>%
+  slice_head(n = 20) %>%
+  ggplot(aes(x = reorder(term, Importance), y = Importance)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Lasso Logistic — Feature Importance",
+       x = "Feature", y = "Absolute Coefficient")
 
+  ggsave("llr_feature_importance.png", plot = llr_vip, width = 6, height = 4)
+```
 
+```{r}
+  
+rf <- readRDS("random_forest.rds")
+
+rf_vip <- rf$model %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) +
+  labs(title = "Random Forest — Feature Importance",
+       x = "Feature", y = "Importance")
+
+ggsave("rf_feature_importance.png", plot = rf_vip, width = 6, height = 4)
+
+xgb <- readRDS("xgb.rds")
+xgb_vip <- xgb$model %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) +
+  labs(title = "XGBoost — Feature Importance",
+       x = "Feature", y = "Importance") 
+
+ggsave("xgb_feature_importance.png", plot = xgb_vip, width = 6, height = 4)
+
+```
+
+```{r}
+tibble(
+  Model     = c("Lasso Logistic Regression", "Random Forest", "XGBoost"),
+  Threshold = c(llr$threshold, rf$threshold, xgb$threshold)
+) %>%
+  gt() %>%
+  tab_header(
+    title    = "Optimal Classification Thresholds by Model",
+    subtitle = "Thresholds selected by balancing sensitivity and specificity"
+  ) %>%
+  fmt_number(columns = Threshold, decimals = 3) %>%
+  cols_align(align = "center", columns = Threshold) %>%
+  gtsave("thresholds.png")
+
+```
