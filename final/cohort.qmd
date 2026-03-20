@@ -731,6 +731,10 @@ coefficients_df_w1 %>%
   ) +
   theme_minimal()
 ```
+## Save Lasso Logistic Regression Model
+```{r}
+saveRDS(lassologit_preds, "lassologit.rds")
+```
 
 #Random Forest Model
 
@@ -1002,6 +1006,11 @@ importance_df %>%
     legend.position    = "none",            # remove legend
     axis.text.y        = element_text(size = 11)
   )
+```
+
+## Save Random Forest Model
+```{r}
+saveRDS(rf_pred_results, "rf.rds")
 ```
 
 # XGBoost Model
