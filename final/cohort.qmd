@@ -1,7 +1,29 @@
 ---
-title: "cohort"
-format: html
+title: "Can Early ED Clinical Data Predict Whether Trauma Patients Will Need To Be Transferred To A Critical Care Unit?"
+author: "Rebekah Patel and 605566820"
+teammates: "Mayra Cortez and Emma Elliott"
+format:
+  html:
+    theme: cosmo
+    embed-resources: true
+    number-sections: false
+    toc: true
+    toc-depth: 4
+    toc-location: left
+    code-fold: false
 ---
+# Abstract
+"We don't have any beds!" is a repeated quote from the television show, *The Pitt*, which is one of the most realistic medical dramas ever aired, depicting the challenges of working in an Emergency Department (ED) in a busy metropolitan hospital. In each episode, the constant theme is that there are never enough beds in the ED to accommodate the number of patients who need care. This is a common problem in real life as well, and it can lead to worse outcomes for patients who need critical care but are not able to be transferred to an intensive care unit (ICU) in a timely manner. This project aims to develop a predictive model to identify trauma patients in the Emergency Department (ED) who are at high risk of requiring transfer to a critical care unit within 3 hours of admission. In doing so, more beds will open up faster and more patients will be seen. Using the MIMIC-IV database, we will build a cohort of trauma patients based on International Classification of Diseases (ICD) codes and extract relevant clinical data from the first 3 hours of their ED stay, including demographics, vital signs, laboratory results, and comorbidity information. We will then preprocess the data and train a lasso logistic regression model, random forest model, and an XGBoost model with class weights to address class imbalance, tuning the hyperparameters through 5-fold cross-validation. The model's performance will be evaluated using metrics such as AUC-ROC, AUC-PR, sensitivity, and specificity. We will find that the XGBoost model is the most reliable model that identifies high risk trauma patients with the greatest sensitivity, which is one of the goals of this project. Finally, we will analyze feature importance to investigate the key predictors of early ICU transfer among trauma patients in the ED. From this dataset, we will find that certain features such as walk-ins, race, and age are among the most important predictors of early ICU transfer. This project is just the starting point to eventually providing doctors with a tool to help make faster, more informed decisions about which trauma patients in the ED are at high risk of needing critical care.
+
+# Introduction
+## Background
+Emergency Departments (EDs) are often the first point of contact for patients seeking medical care, and they play a critical role in the healthcare system. However, EDs frequently face challenges related to overcrowding and limited resources, which can lead to delays in care and worse outcomes for patients who require critical care. Trauma patients are particularly vulnerable in this context, as they often require rapid assessment and intervention to prevent deterioration. Identifying trauma patients who are at high risk of needing transfer to a critical care unit within the first few hours of their ED stay can help healthcare providers prioritize care and allocate resources more effectively. Previous studies have shown that 
+
+
+# Methods
+## Data Source or Materials
+The data for this project was sourced from the Medical Information Mart for Intensive Care IV (MIMIC-IV) database that contains de-identified patient data from Beth Israel Deaconess Medical Center in Boston, Massachusetts. The data is collected from Metavision bedside monitors. To access this data, researchers much become credientialed users on PhysioNet and complete training couses in human subjects research, as well as sign a data use agrement, to ensure that the data is treated with care. In this project, we utilized data from the hosp folder, which pertains to all patient data hospital wide such as admissions and transfers, the icu folder, which only holds patient data collected from critical care units (CCU), and the ed folder, which only contains patient data collected from the ED. From the hosp folder, we utilized patient demographic data such as age, admission and transfer data to learn if patients transferred from the ED to a CCU, and patient billing data to retrieve the ICD codes per visit and identify the trauma patients. From the icu folder, we utilized the admitted CCU times to ensure accurate 
+
 
 ```{r}
 library(arrow)
@@ -490,7 +512,8 @@ saveRDS(final_cohort_flagged, "final_cohort_flagged.rds")
 #### Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
 ```{r}
 set.seed(123)
-final_cohort_flagged <- readRDS("final_cohort_flagged.rds")
+final_cohort_flagged <- readRDS("final_cohort_flagged.rds") %>%
+  select(-stay_seq)
 
 n_total <- nrow(final_cohort_flagged)
 n_no <- sum(final_cohort_flagged$icu_within_3hrs == "No")
@@ -570,7 +593,7 @@ cat("Running on", n_cores, "cores\n")
 
 set.seed(123)
 folds <- vfold_cv(train_data_w1, 
-                  v = 10,
+                  v = 5,
                   strata = icu_within_3hrs)
 
 param_grid <- grid_regular(
@@ -582,7 +605,8 @@ lassologit_fit_w1 <- lassologit_wf_w1 %>%
   tune_grid(
     resamples = folds,
     grid = param_grid,
-    control = control_grid(save_pred = TRUE),
+    control = control_grid(save_pred = TRUE,
+                           parallel_over = everything()),
     metrics = metric_set(roc_auc, pr_auc, sensitivity, specificity)
   )
 
@@ -664,7 +688,7 @@ final_lassologit_fit_w1 %>%
 ```{r}
 lassologit_preds <- final_lassologit_fit_w1 %>%
   collect_predictions() %>%
-  mutate(.pred_class = if_else(.pred_Yes >= chosen_threshold, "Yes", "No"),
+  mutate(.pred_class = if_else(.pred_Yes >= lassologit_chosen_threshold, "Yes", "No"),
          .pred_class = factor(.pred_class, levels = c("Yes", "No")))
 
 conf_mat(lassologit_preds, truth = icu_within_3hrs, estimate = .pred_class)
@@ -714,7 +738,8 @@ coefficients_df_w1 %>%
 ```{r}
 set.seed(123)
 
-cohort_rf <- readRDS("final_cohort_flagged.rds")
+cohort_rf <- readRDS("final_cohort_flagged.rds") %>%
+  select(-stay_seq)
 
 data_split_rf <- initial_split(
   cohort_rf,
