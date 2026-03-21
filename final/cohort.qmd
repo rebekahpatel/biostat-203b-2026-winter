@@ -1,7 +1,7 @@
 ---
 title: "Can Early ED Clinical Data Predict Whether Trauma Patients Will Need To Be Transferred To A Critical Care Unit?"
 author: "Rebekah Patel and 605566820"
-teammates: "Mayra Cortez and Emma Elliott"
+subtitle: "Mayra Cortez and Emma Elliott"
 format:
   html:
     theme: cosmo
@@ -12,6 +12,16 @@ format:
     toc-location: left
     code-fold: false
 ---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)   # includes %>% and dplyr
+library(gtsummary)   # for tbl_summary, as_gt, etc.
+library(gt)          # for tab_header
+```
+
 # Abstract
 "We don't have any beds!" is a repeated quote from the television show, *The Pitt*, which is one of the most realistic medical dramas ever aired, depicting the challenges of working in an Emergency Department (ED) in a busy metropolitan hospital. In each episode, the constant theme is that there are never enough beds in the ED to accommodate the number of patients who need care. This is a common problem in real life as well, and it can lead to worse outcomes for patients who need critical care but are not able to be transferred to an intensive care unit (ICU) in a timely manner. This project aims to develop a predictive model to identify trauma patients in the Emergency Department (ED) who are at high risk of requiring transfer to a critical care unit within 3 hours of admission. In doing so, more beds will open up faster and more patients will be seen. Using the MIMIC-IV database, we will build a cohort of trauma patients based on International Classification of Diseases (ICD) codes and extract relevant clinical data from the first 3 hours of their ED stay, including demographics, vital signs, laboratory results, and comorbidity information. We will then preprocess the data and train a lasso logistic regression model, random forest model, and an XGBoost model with class weights to address class imbalance, tuning the hyperparameters through 5-fold cross-validation. The model's performance will be evaluated using metrics such as AUC-ROC, AUC-PR, sensitivity, and specificity. We will find that the XGBoost model is the most reliable model that identifies high risk trauma patients with the greatest sensitivity, which is one of the goals of this project. Finally, we will analyze feature importance to investigate the key predictors of early ICU transfer among trauma patients in the ED. From this dataset, we will find that certain features such as admission type and race are among the most important predictors of early ICU transfer. This project is just the starting point to eventually providing doctors with a tool to help make faster, more informed decisions about which trauma patients in the ED are at high risk of needing critical care.
 
@@ -107,7 +117,7 @@ In conclusion, our project demonstrates that it is possible to predict early ICU
 # AI Usage Acknowledgement
 I utilized Claude Sonnet 4.6, GitHub Copilot, and Google Gemini 3 to assist coding the project. The models provided suggestions and helped with debugging. All code was reviewed and edited by me to ensure accuracy and appropriateness for the project. The models were used as tools to enhance the coding process, but all final decisions and code implementations were made by me. I also used Copilot's suggestions in writing the report, but I revised and edited all statements to ensure accurate accounts of the project and to ensure that the writing style was consistent throughout the report of the project.
 
----
+***
 
 # Cohort
 ##Set-Up
@@ -153,14 +163,14 @@ con_bq
 ```
 
 ## Building the cohort: Joining transfers and icustays together
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 # find all units listed under icustays
 icu_careunits <- tbl(con_bq, "icustays") %>%
   distinct(first_careunit) %>%
   pull(first_careunit)
 ```
 
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 # all transfers of patients who go from ed to icu per visit
 ed_to_icu <- tbl(con_bq, "transfers") %>% #start with transfers
   mutate(
@@ -231,7 +241,7 @@ ed_to_icu
 ```
 
 ## Finding all trauma patients through ICD codes
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 all_trauma_patients <- tbl(con_bq, "diagnoses_icd") %>%
     filter(
       # ICD-10 Logic: Must be version 10 AND within the S00-T88 range
@@ -259,7 +269,7 @@ ed_to_icu_trauma <- ed_to_icu %>%
 ```
 
 ## Now that we have all the patients and their stays, add in labs, vitals, and demographic data
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 demographics <- tbl(con_bq, "patients") %>%
   select(subject_id, gender, anchor_age, anchor_year) %>%
   inner_join(
@@ -302,7 +312,7 @@ lab_item_ids <- as.integer(names(lab_items_map))
 
 ```
 
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 labevents_tble <-
   open_dataset("labevents_pq", format = "parquet") %>%
   select(subject_id, hadm_id, itemid, charttime, valuenum) %>%
@@ -343,7 +353,7 @@ ed_to_icu_trauma_demo_labs <- ed_to_icu_trauma_demo %>%
 ```
 
 ## Adding the vitals from the ED dataset
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 vitals <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/vitalsign.csv.gz") %>%
   as_tibble()
 edstays <- fread("~/BIOSTAT203B/mimic-iv-3.1/ed/edstays.csv.gz") %>%
@@ -381,7 +391,7 @@ ed_vitals <- vitals %>%
 
 ```
 
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 ed_to_icu_trauma_demo_labs_vitals <- ed_to_icu_trauma_demo_labs %>%
   left_join(
     ed_vitals,
@@ -403,7 +413,7 @@ ed_to_icu_trauma_demo_labs_vitals %>%
 ```
 
 ## Adding Charlson score to account for comorbidities
-```{r}
+```{r, cache=TRUE, cache.lazy=FALSE}
 icd_visits <- tbl(con_bq, "diagnoses_icd") %>%
   inner_join(
     tbl(con_bq, "admissions") %>%
@@ -580,8 +590,8 @@ readRDS("final_cohort_flagged.rds") %>%
   ) %>%
   gtsave("cohort_summary.png")
 ```
----
 
+***
 #Lasso Logsitic Model
 ## Data Split 
 Adding sample-based class weights to address class imbalance and then doing the intial data split with a proportion of 0.75 for training and 0.25 for testing, stratified by the outcome variable `icu_within_3hrs`.
@@ -822,7 +832,7 @@ saveRDS(
   "lassologit.rds"
 )
 ```
----
+***
 #Random Forest Model
 
 ## Data Split
@@ -883,7 +893,8 @@ rf_mod <- rand_forest(
   ) %>%
   set_engine("ranger",
              importance = "impurity",
-             class.weights = c("Yes" = weight_yes, "No" = weight_no)
+             class.weights = c("Yes" = weight_yes, "No" = weight_no),
+             num.threads  = parallel::detectCores() - 1
 )
 ```
 
@@ -896,9 +907,6 @@ rf_wf <- workflow() %>%
 
 ## Hyperparameter Tuning with Cross Validation
 ```{r}
-n_cores <- detectCores(logical = TRUE) - 1
-cl <- makePSOCKcluster(n_cores)
-registerDoParallel(cl)
 
 folds <- vfold_cv(train_data_rf, 
                   v = 5,
@@ -914,8 +922,6 @@ tune_grid(
                          parallel_over = "everything")
 )
 
-stopCluster(cl)
-registerDoSEQ()
 ```
 
 ```{r}
@@ -939,10 +945,6 @@ best_pr_auc_params
 rf_preds <- rf_fit %>%
   collect_predictions(parameters = best_params)
 
-# See the actual range of predicted Yes probabilities
-summary(rf_preds$.pred_Yes)
-quantile(rf_preds$.pred_Yes, probs = c(0.5, 0.75, 0.9, 0.95, 0.99, 1.0))
-
 threshold_data <- rf_preds %>%
   threshold_perf(truth = icu_within_3hrs,
                  estimate = .pred_Yes,
@@ -961,6 +963,7 @@ threshold_data %>%
     theme_minimal()
 
 ```
+
 ```{r}
 glimpse(threshold_data)
 head(threshold_data)
@@ -1107,7 +1110,7 @@ saveRDS(
   "random_forest.rds"
 )
 ```
----
+***
 # XGBoost Model
 ## Data Split
 ```{r}
@@ -1359,122 +1362,121 @@ final_fit %>%
 final_fit %>%
   collect_predictions() %>%
   mutate(.pred_class = factor(
-    ifelse(.pred_Yes >= chosen_threshold, "Yes", "No"),  # threshold for classification
+    ifelse(.pred_Yes >= xgb_chosen_threshold, "Yes", "No"),  # threshold for classification
     levels = c("Yes", "No")                             # ensure factor levels are correct
   )) %>%
   conf_mat(truth = icu_within_3hrs, estimate = .pred_class) 
 ```
----
+***
 
-# Model Comparison
-## Collect predictions from each model (assuming each has collect_predictions output)
-```{r}
-lassologit__preds <- final_lassologit_fit_w1 %>%
-  collect_predictions() %>%
-  mutate(
-    model = "Lasso Logistic",
-    .pred_class = factor(ifelse(.pred_Yes >= lassologit_chosen_threshold, "Yes", "No"),
-                         levels = c("Yes", "No"))
-  )
+<!-- # Model Comparison -->
+<!-- ## Collect predictions from each model (assuming each has collect_predictions output) -->
+<!-- ```{r} -->
+<!-- lassologit__preds <- final_lassologit_fit_w1 %>% -->
+<!--   collect_predictions() %>% -->
+<!--   mutate( -->
+<!--     model = "Lasso Logistic", -->
+<!--     .pred_class = factor(ifelse(.pred_Yes >= lassologit_chosen_threshold, "Yes", "No"), -->
+<!--                          levels = c("Yes", "No")) -->
+<!--   ) -->
 
-xgb_preds <- final_fit %>%
-  collect_predictions() %>%
-  mutate(
-    model = "XGBoost",
-    .pred_class = factor(ifelse(.pred_Yes >= xgb_chosen_threshold, "Yes", "No"),
-                         levels = c("Yes", "No"))
-  )
+<!-- xgb_preds <- final_fit %>% -->
+<!--   collect_predictions() %>% -->
+<!--   mutate( -->
+<!--     model = "XGBoost", -->
+<!--     .pred_class = factor(ifelse(.pred_Yes >= xgb_chosen_threshold, "Yes", "No"), -->
+<!--                          levels = c("Yes", "No")) -->
+<!--   ) -->
 
-rf_preds <- final_rf_fit %>%
-  collect_predictions() %>%
-  mutate(
-    model = "Random Forest",
-    .pred_class = factor(ifelse(.pred_Yes >= rf_chosen_threshold, "Yes", "No"),
-                         levels = c("Yes", "No"))
-  )
-```
+<!-- rf_preds <- final_rf_fit %>% -->
+<!--   collect_predictions() %>% -->
+<!--   mutate( -->
+<!--     model = "Random Forest", -->
+<!--     .pred_class = factor(ifelse(.pred_Yes >= rf_chosen_threshold, "Yes", "No"), -->
+<!--                          levels = c("Yes", "No")) -->
+<!--   ) -->
+<!-- ``` -->
 
-```{r}
-# Function to compute all 4 metrics for one model's predictions
-get_metrics <- function(preds, model_name) {
-  tibble(
-    model       = model_name,
-    roc_auc     = roc_auc(preds, truth = icu_within_3hrs, .pred_Yes)$.estimate,
-    pr_auc      = pr_auc(preds, truth = icu_within_3hrs, .pred_Yes)$.estimate,
-    sensitivity = sensitivity(preds, truth = icu_within_3hrs, estimate = .pred_class)$.estimate,
-    specificity = specificity(preds, truth = icu_within_3hrs, estimate = .pred_class)$.estimate
-  )
-}
+<!-- ```{r} -->
+<!-- # Function to compute all 4 metrics for one model's predictions -->
+<!-- get_metrics <- function(preds, model_name) { -->
+<!--   tibble( -->
+<!--     model       = model_name, -->
+<!--     roc_auc     = roc_auc(preds, truth = icu_within_3hrs, .pred_Yes)$.estimate, -->
+<!--     pr_auc      = pr_auc(preds, truth = icu_within_3hrs, .pred_Yes)$.estimate, -->
+<!--     sensitivity = sensitivity(preds, truth = icu_within_3hrs, estimate = .pred_class)$.estimate, -->
+<!--     specificity = specificity(preds, truth = icu_within_3hrs, estimate = .pred_class)$.estimate -->
+<!--   ) -->
+<!-- } -->
 
-# Combine into one table
-model_comparison <- bind_rows(
-  get_metrics(lassologit_preds,  "Lasso Logistic"),
-  get_metrics(xgb_preds,    "XGBoost"),
-  get_metrics(rf_preds,     "Random Forest")
-) %>%
-  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
-  as_gt() %>%
-  gt_save("model_comparison.png")
+<!-- # Combine into one table -->
+<!-- model_comparison <- bind_rows( -->
+<!--   get_metrics(lassologit_preds,  "Lasso Logistic"), -->
+<!--   get_metrics(xgb_preds,    "XGBoost"), -->
+<!--   get_metrics(rf_preds,     "Random Forest") -->
+<!-- ) %>% -->
+<!--   mutate(across(where(is.numeric), ~ round(.x, 3))) %>% -->
+<!--   as_gt() %>% -->
+<!--   gt_save("model_comparison.png") -->
 
-model_comparison
-```
+<!-- model_comparison -->
+<!-- ``` -->
 
-### Save Feature Importance Plots for each Model
-```{r}
-llr <- readRDS("lassologit.rds")
-library(broom)
+<!-- ### Save Feature Importance Plots for each Model -->
+<!-- ```{r} -->
+<!-- llr <- readRDS("lassologit.rds") -->
+<!-- library(broom) -->
 
-llr_vip <- llr$model %>%
-  extract_fit_parsnip() %>%
-  tidy() %>%                              # extracts coefficients as a tibble
-  filter(term != "(Intercept)") %>%       # drop intercept
-  mutate(Importance = abs(estimate)) %>%  # absolute coefficient value
-  arrange(desc(Importance)) %>%
-  slice_head(n = 20) %>%
-  ggplot(aes(x = reorder(term, Importance), y = Importance)) +
-  geom_col(fill = "steelblue") +
-  coord_flip() +
-  labs(title = "Lasso Logistic — Feature Importance",
-       x = "Feature", y = "Absolute Coefficient")
+<!-- llr_vip <- llr$model %>% -->
+<!--   extract_fit_parsnip() %>% -->
+<!--   tidy() %>%                              # extracts coefficients as a tibble -->
+<!--   filter(term != "(Intercept)") %>%       # drop intercept -->
+<!--   mutate(Importance = abs(estimate)) %>%  # absolute coefficient value -->
+<!--   arrange(desc(Importance)) %>% -->
+<!--   slice_head(n = 20) %>% -->
+<!--   ggplot(aes(x = reorder(term, Importance), y = Importance)) + -->
+<!--   geom_col(fill = "steelblue") + -->
+<!--   coord_flip() + -->
+<!--   labs(title = "Lasso Logistic — Feature Importance", -->
+<!--        x = "Feature", y = "Absolute Coefficient") -->
 
-  ggsave("llr_feature_importance.png", plot = llr_vip, width = 6, height = 4)
-```
+<!--   ggsave("llr_feature_importance.png", plot = llr_vip, width = 6, height = 4) -->
+<!-- ``` -->
 
-```{r}
-  
-rf <- readRDS("random_forest.rds")
+<!-- ```{r} -->
+<!-- rf <- readRDS("random_forest.rds") -->
 
-rf_vip <- rf$model %>%
-  extract_fit_parsnip() %>%
-  vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) +
-  labs(title = "Random Forest — Feature Importance",
-       x = "Feature", y = "Importance")
+<!-- rf_vip <- rf$model %>% -->
+<!--   extract_fit_parsnip() %>% -->
+<!--   vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) + -->
+<!--   labs(title = "Random Forest — Feature Importance", -->
+<!--        x = "Feature", y = "Importance") -->
 
-ggsave("rf_feature_importance.png", plot = rf_vip, width = 6, height = 4)
+<!-- ggsave("rf_feature_importance.png", plot = rf_vip, width = 6, height = 4) -->
 
-xgb <- readRDS("xgb.rds")
-xgb_vip <- xgb$model %>%
-  extract_fit_parsnip() %>%
-  vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) +
-  labs(title = "XGBoost — Feature Importance",
-       x = "Feature", y = "Importance") 
+<!-- xgb <- readRDS("xgb.rds") -->
+<!-- xgb_vip <- xgb$model %>% -->
+<!--   extract_fit_parsnip() %>% -->
+<!--   vip(num_features = 20, geom = "col", aesthetics = list(fill = "steelblue")) + -->
+<!--   labs(title = "XGBoost — Feature Importance", -->
+<!--        x = "Feature", y = "Importance")  -->
 
-ggsave("xgb_feature_importance.png", plot = xgb_vip, width = 6, height = 4)
+<!-- ggsave("xgb_feature_importance.png", plot = xgb_vip, width = 6, height = 4) -->
 
-```
+<!-- ``` -->
 
-```{r}
-tibble(
-  Model     = c("Lasso Logistic Regression", "Random Forest", "XGBoost"),
-  Threshold = c(llr$threshold, rf$threshold, xgb$threshold)
-) %>%
-  gt() %>%
-  tab_header(
-    title    = "Optimal Classification Thresholds by Model",
-    subtitle = "Thresholds selected by balancing sensitivity and specificity"
-  ) %>%
-  fmt_number(columns = Threshold, decimals = 3) %>%
-  cols_align(align = "center", columns = Threshold) %>%
-  gtsave("thresholds.png")
+<!-- ```{r} -->
+<!-- tibble( -->
+<!--   Model     = c("Lasso Logistic Regression", "Random Forest", "XGBoost"), -->
+<!--   Threshold = c(llr$threshold, rf$threshold, xgb$threshold) -->
+<!-- ) %>% -->
+<!--   gt() %>% -->
+<!--   tab_header( -->
+<!--     title    = "Optimal Classification Thresholds by Model", -->
+<!--     subtitle = "Thresholds selected by balancing sensitivity and specificity" -->
+<!--   ) %>% -->
+<!--   fmt_number(columns = Threshold, decimals = 3) %>% -->
+<!--   cols_align(align = "center", columns = Threshold) %>% -->
+<!--   gtsave("thresholds.png") -->
 
-```
+<!-- ``` -->
