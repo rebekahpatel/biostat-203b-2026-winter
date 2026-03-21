@@ -9,7 +9,7 @@ library(tidyverse)
 library(dbplyr)
 library(stringr)
 
-cohort <- readRDS("~/BIOSTAT203B/203b-hw/final/final_cohort_flagged.rds") %>%
+cohort <- readRDS("final_cohort_flagged.rds") %>%
   select(-stay_seq) %>%
   mutate(stay_id = row_number())
 
